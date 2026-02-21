@@ -77,12 +77,14 @@ second directory copies from cache with no network request.
 | `datum init` | Create a `datapackage.json` via an interactive wizard |
 | `datum check [FILE]` | Validate a `datapackage.json` against the Datum schema |
 | `datum publish [FILE]` | Publish dataset metadata to the registry |
+| `datum unpublish IDENTIFIER` | Remove a dataset version from the registry |
 
 ### Consuming
 
 | Command | Description |
 |---|---|
 | `datum pull IDENTIFIER` | Download a dataset and verify its checksum |
+| `datum update [IDENTIFIER]` | Pull the latest version of one or all cached datasets |
 | `datum info IDENTIFIER` | Show full metadata for a dataset |
 | `datum list` | List all datasets in the registry |
 | `datum search QUERY` | Search the registry by keyword |
@@ -174,6 +176,21 @@ datum pull publisher.namespace.dataset:1.0.0 --force
 
 Files are placed in `./dataset/` relative to your current directory.
 Once a file exists there, subsequent pulls skip it — your local edits are safe.
+
+---
+
+## Update behaviour
+
+```bash
+# Update a specific dataset to the latest version
+datum update publisher.namespace.dataset
+
+# Check what would be updated without downloading
+datum update --check
+
+# Update all cached datasets at once
+datum update
+```
 
 ---
 
