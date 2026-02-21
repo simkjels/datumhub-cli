@@ -194,6 +194,18 @@ Configuration is stored at `~/.datum/config.json`.
 
 ---
 
+## Shell completion
+
+Enable tab-completion for your shell:
+
+```bash
+datum --install-completion
+```
+
+Supports bash, zsh, fish, and PowerShell. Restart your shell (or open a new tab) after installing.
+
+---
+
 ## Status
 
 Early development. The CLI is functional for local workflows.
