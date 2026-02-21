@@ -1,9 +1,9 @@
-# datum-cli
+# datumhub-cli
 
-> The command-line tool for [Datum](https://github.com/simkjels/datum) — publish and consume open data with a single command.
+> The command-line tool for [DatumHub](https://datumhub.org) — publish and consume open data with a single command.
 
 ```
-datum pull norges-bank.reports.financial-stability:2024
+datum pull statistics.eu.gdp-by-country:2024
 ```
 
 ---
@@ -20,17 +20,17 @@ Requires Python 3.11+.
 
 ## How it works
 
-Every dataset in Datum has a three-part identifier:
+Every dataset has a three-part identifier:
 
 ```
 publisher.namespace.dataset:version
 ```
 
-For example: `met.no.weather.oslo-hourly:2024-01`
+For example: `statistics.eu.gdp-by-country:2024`
 
 The metadata lives in a `datapackage.json` file — a small JSON document that
 describes where the data files are hosted, their format, size, and checksum.
-Datum never hosts the data itself.
+Datum never hosts the data itself. The files stay on the publisher's own servers.
 
 ---
 
