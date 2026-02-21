@@ -71,6 +71,28 @@ class LocalRegistry:
         # Fall back to global match with a tighter cutoff
         return difflib.get_close_matches(id_part, all_ids, n=n, cutoff=0.7)
 
+    def unpublish(self, id: str, version: str) -> bool:
+        """Remove a specific version from the registry. Returns True if removed."""
+        path = self._pkg_path(id, version)
+        if not path.exists():
+            return False
+        path.unlink()
+        # Remove empty parent directories (ds/, ns/, pub/)
+        for parent in [path.parent, path.parent.parent, path.parent.parent.parent]:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+        return True
+
+    def versions(self, id: str) -> List[str]:
+        """Return all published versions for a dataset id."""
+        pub, ns, ds = id.split(".")
+        folder = self.root / pub / ns / ds
+        if not folder.exists():
+            return []
+        return [p.stem for p in sorted(folder.glob("*.json"))]
+
     def latest(self, id: str) -> Optional[DataPackage]:
         """Return the most recently published version for a dataset id."""
         pub, ns, ds = id.split(".")

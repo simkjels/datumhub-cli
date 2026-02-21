@@ -17,6 +17,8 @@ from datum.commands.login import cmd_login, cmd_logout
 from datum.commands.publish import cmd_publish
 from datum.commands.pull import cmd_pull
 from datum.commands.search import cmd_search
+from datum.commands.unpublish import cmd_unpublish
+from datum.commands.update import cmd_update
 from datum.state import OutputFormat, state
 
 # ---------------------------------------------------------------------------
@@ -98,6 +100,8 @@ app.command("info", help="Show dataset metadata without downloading data files."
 app.command("search", help="Search the registry by keyword.")(cmd_search)
 app.command("login", help="Authenticate with a Datum registry.")(cmd_login)
 app.command("logout", help="Remove stored credentials for a registry.")(cmd_logout)
+app.command("unpublish", help="Remove a dataset version from the local registry.")(cmd_unpublish)
+app.command("update", help="Pull the latest version of one or all cached datasets.")(cmd_update)
 
 # list / ls alias
 app.command("list", help="List datasets in the registry.")(cmd_list)
