@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "datumhub-cli"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Publish and consume open data from the command line. Discover, pull, and verify any file by identifier."
 readme = "README.md"
 requires-python = ">=3.9"
