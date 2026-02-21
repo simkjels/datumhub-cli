@@ -7,6 +7,7 @@ from typing import Optional
 import typer
 
 from datum.__init__ import __version__
+from datum.commands.add import cmd_add
 from datum.commands.cache import cache_app
 from datum.commands.check import cmd_check
 from datum.commands.config import config_app
@@ -31,11 +32,11 @@ app = typer.Typer(
     help=(
         "[bold cyan]Datum[/bold cyan] — open datasets, open source.\n\n"
         "Publish and consume open datasets with a familiar, composable CLI.\n"
-        "Datasets are identified as [bold]publisher.namespace.dataset:version[/bold].\n\n"
+        "Datasets are identified as [bold]publisher/namespace/dataset:version[/bold].\n\n"
         "[bold]Note:[/bold] global flags ([bold]--output[/bold], [bold]--quiet[/bold], "
         "[bold]--registry[/bold]) must come [bold]before[/bold] the subcommand:\n\n"
-        "  datum --output json info my.ns.dataset\n"
-        "  datum --quiet pull my.ns.dataset:1.0.0"
+        "  datum --output json info norge.no/population/census\n"
+        "  datum --quiet pull simkjels/samples/demo:1.0.0"
     ),
     add_completion=True,
     no_args_is_help=True,
@@ -94,6 +95,7 @@ def _root(
 # ---------------------------------------------------------------------------
 
 app.command("init", help="Create a datapackage.json via an interactive wizard.")(cmd_init)
+app.command("add", help="Add source URL(s) to a datapackage.json (auto-computes checksum + size).")(cmd_add)
 app.command("check", help="Validate a datapackage.json against the Datum schema.")(cmd_check)
 app.command("publish", help="Publish dataset metadata to the registry.")(cmd_publish)
 app.command("pull", help="Download a dataset by identifier and verify its checksum.")(cmd_pull)

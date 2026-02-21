@@ -17,7 +17,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from datum.console import console, err_console
-from datum.models import CHECKSUM_PATTERN, SLUG_PATTERN, DataPackage
+from datum.models import CHECKSUM_PATTERN, PUBLISHER_PATTERN, SLUG_PATTERN, DataPackage
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +39,25 @@ def _prompt_slug(label: str, default: Optional[str] = None) -> str:
             err_console.print(
                 "  [error]Must use only lowercase letters, digits, and hyphens, "
                 "and must not start or end with a hyphen.[/error]"
+            )
+            continue
+        return value
+
+
+def _prompt_publisher_slug(label: str, default: Optional[str] = None) -> str:
+    """Ask for a publisher slug (allows dots for domains), re-prompting on invalid input."""
+    while True:
+        kwargs: dict = {}
+        if default:
+            kwargs["default"] = default
+        value = Prompt.ask(f"  {label}", **kwargs).strip()
+        if not value:
+            err_console.print("  [error]This field is required.[/error]")
+            continue
+        if not PUBLISHER_PATTERN.match(value):
+            err_console.print(
+                "  [error]Must use only lowercase letters, digits, hyphens, and dots, "
+                "and must not start or end with a hyphen or dot.[/error]"
             )
             continue
         return value
@@ -165,7 +184,7 @@ def cmd_init(
     )
     console.print()
 
-    publisher_slug = _prompt_slug("Publisher slug  (e.g. norge.no, simkjels)")
+    publisher_slug = _prompt_publisher_slug("Publisher slug  (e.g. norge.no, simkjels)")
     namespace_slug = _prompt_slug("Namespace slug  (e.g. population, weather)")
     dataset_slug = _prompt_slug("Dataset slug    (e.g. census, oslo-hourly)")
     identifier = f"{publisher_slug}/{namespace_slug}/{dataset_slug}"

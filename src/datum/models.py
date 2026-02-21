@@ -16,6 +16,7 @@ _PUBLISHER = r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?"
 # Full identifier: publisher/namespace/dataset  (publisher may contain dots)
 ID_PATTERN = re.compile(rf"^{_PUBLISHER}/{_SLUG}/{_SLUG}$")
 SLUG_PATTERN = re.compile(rf"^{_SLUG}$")
+PUBLISHER_PATTERN = re.compile(rf"^{_PUBLISHER}$")
 CHECKSUM_PATTERN = re.compile(r"^(sha256|sha512|md5):[a-f0-9]+$")
 
 COMMON_FORMATS = {
