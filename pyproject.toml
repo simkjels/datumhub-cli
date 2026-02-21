@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "datumhub-cli"
 version = "0.1.0"
-description = "Open datasets, open source — a CLI for publishing and consuming open datasets."
+description = "Publish and consume open data from the command line. Discover, pull, and verify any file by identifier."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
