@@ -24,13 +24,13 @@ def _cached_dataset_ids(cache_root: Path) -> List[str]:
         parts = version_dir.relative_to(cache_root).parts
         if len(parts) == 4 and version_dir.is_dir():
             pub, ns, ds, _ = parts
-            ids.add(f"{pub}.{ns}.{ds}")
+            ids.add(f"{pub}/{ns}/{ds}")
     return sorted(ids)
 
 
 def _cached_versions(cache_root: Path, id_part: str) -> List[str]:
     """Return all cached versions for a dataset id."""
-    pub, ns, ds = id_part.split(".")
+    pub, ns, ds = id_part.split("/")
     folder = cache_root / pub / ns / ds
     if not folder.exists():
         return []

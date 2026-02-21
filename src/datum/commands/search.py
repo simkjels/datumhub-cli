@@ -11,7 +11,7 @@ from rich.table import Table
 
 from datum.console import console, err_console
 from datum.models import DataPackage
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
@@ -29,8 +29,19 @@ def cmd_search(
     output_fmt = state.output
     quiet = state.quiet
 
-    registry = get_local_registry()
-    matches = _search(registry.list(), query)
+    registry = get_registry()
+    is_remote = bool(state.registry and state.registry.startswith(("http://", "https://")))
+    try:
+        if is_remote:
+            matches = registry.list(q=query)
+        else:
+            matches = _search(registry.list(), query)
+    except RuntimeError as exc:
+        if output_fmt == OutputFormat.json:
+            print(json.dumps([], indent=2))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
 
     if output_fmt == OutputFormat.json:
         print(json.dumps([p.to_dict() for p in matches], indent=2, ensure_ascii=False))

@@ -18,7 +18,7 @@ from rich.table import Table
 from datum.commands.cache import get_cache_root
 from datum.console import console, err_console
 from datum.models import ID_PATTERN
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
@@ -60,18 +60,25 @@ def cmd_pull(
         else:
             err_console.print(
                 f"\n[error]✗[/error] Invalid identifier: [bold]{id_part}[/bold]\n\n"
-                "  Expected [bold]publisher.namespace.dataset[/bold] "
-                "(three dot-separated slugs of lowercase letters, digits, and hyphens — "
-                "e.g. met.no.oslo-hourly)"
+                "  Expected [bold]publisher/namespace/dataset[/bold] "
+                "(slash-separated — publisher may contain dots, "
+                "e.g. norge.no/population/census or simkjels/samples/demo)"
             )
         raise typer.Exit(code=1)
 
     # 3. Resolve package from registry
-    registry = get_local_registry()
-    if version == "latest":
-        pkg = registry.latest(id_part)
-    else:
-        pkg = registry.get(id_part, version)
+    registry = get_registry()
+    try:
+        if version == "latest":
+            pkg = registry.latest(id_part)
+        else:
+            pkg = registry.get(id_part, version)
+    except RuntimeError as exc:
+        if output_fmt == OutputFormat.json:
+            _emit_json(downloaded=False, error=str(exc))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
 
     if pkg is None:
         label = f"{id_part}:{version}"
@@ -90,7 +97,7 @@ def cmd_pull(
         raise typer.Exit(code=1)
 
     # 4. Dirs
-    pub, ns, ds = pkg.id.split(".")
+    pub, ns, ds = pkg.id.split("/")
     cache_dir = get_cache_root() / pub / ns / ds / pkg.version
     cache_dir.mkdir(parents=True, exist_ok=True)
 

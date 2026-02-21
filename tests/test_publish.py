@@ -14,7 +14,7 @@ from datum.registry.local import LocalRegistry
 runner = CliRunner()
 
 VALID_PKG = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data Text File",
     "publisher": {"name": "Simen Kjelsrud"},
@@ -49,9 +49,9 @@ class TestPublishValid:
         f = write_pkg(tmp_path, VALID_PKG)
         invoke(["publish", str(f)], tmp_path)
         reg = LocalRegistry(tmp_path / "registry")
-        pkg = reg.get("simkjels.samples.sampledata", "0.1.0")
+        pkg = reg.get("simkjels/samples/sampledata", "0.1.0")
         assert pkg is not None
-        assert pkg.id == "simkjels.samples.sampledata"
+        assert pkg.id == "simkjels/samples/sampledata"
 
     def test_json_output_published_true(self, tmp_path: Path):
         f = write_pkg(tmp_path, VALID_PKG)
@@ -59,7 +59,7 @@ class TestPublishValid:
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert data["published"] is True
-        assert data["id"] == "simkjels.samples.sampledata"
+        assert data["id"] == "simkjels/samples/sampledata"
         assert data["version"] == "0.1.0"
         assert "path" in data
 

@@ -11,7 +11,7 @@ from datum.models import DataPackage
 from datum.registry.local import LocalRegistry
 
 VALID_PKG_1 = {
-    "id": "met.no.oslo-hourly",
+    "id": "met/no/oslo-hourly",
     "version": "2024-01",
     "title": "Oslo Hourly Weather Data",
     "publisher": {"name": "Norwegian Meteorological Institute", "url": "https://met.no"},
@@ -19,7 +19,7 @@ VALID_PKG_1 = {
 }
 
 VALID_PKG_2 = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data Text File",
     "publisher": {"name": "Simen Kjelsrud"},
@@ -50,7 +50,7 @@ class TestLocalRegistryPublish:
         pkg = make_pkg(VALID_PKG_1)
         path = reg.publish(pkg)
         data = json.loads(path.read_text())
-        assert data["id"] == "met.no.oslo-hourly"
+        assert data["id"] == "met/no/oslo-hourly"
         assert data["version"] == "2024-01"
 
     def test_publish_raises_on_duplicate(self, tmp_path: Path):
@@ -85,8 +85,8 @@ class TestLocalRegistryList:
         results = reg.list()
         assert len(results) == 2
         ids = {p.id for p in results}
-        assert "met.no.oslo-hourly" in ids
-        assert "simkjels.samples.sampledata" in ids
+        assert "met/no/oslo-hourly" in ids
+        assert "simkjels/samples/sampledata" in ids
 
     def test_list_skips_corrupt_files(self, tmp_path: Path):
         reg = LocalRegistry(tmp_path / "registry")
@@ -106,13 +106,13 @@ class TestLocalRegistryList:
 class TestLocalRegistryGet:
     def test_get_returns_none_for_missing(self, tmp_path: Path):
         reg = LocalRegistry(tmp_path / "registry")
-        result = reg.get("met.no.oslo-hourly", "2024-01")
+        result = reg.get("met/no/oslo-hourly", "2024-01")
         assert result is None
 
     def test_get_returns_package(self, tmp_path: Path):
         reg = LocalRegistry(tmp_path / "registry")
         reg.publish(make_pkg(VALID_PKG_1))
-        result = reg.get("met.no.oslo-hourly", "2024-01")
+        result = reg.get("met/no/oslo-hourly", "2024-01")
         assert result is not None
-        assert result.id == "met.no.oslo-hourly"
+        assert result.id == "met/no/oslo-hourly"
         assert result.version == "2024-01"

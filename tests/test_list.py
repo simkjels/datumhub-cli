@@ -14,7 +14,7 @@ from datum.registry.local import LocalRegistry
 runner = CliRunner()
 
 VALID_PKG = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data Text File",
     "publisher": {"name": "Simen Kjelsrud"},
@@ -56,7 +56,7 @@ class TestListWithData:
     def test_one_dataset_id_in_output(self, tmp_path: Path):
         LocalRegistry(tmp_path / "registry").publish(DataPackage.model_validate(VALID_PKG))
         result = invoke(["list"], tmp_path)
-        assert "simkjels.samples.sampledata" in result.output
+        assert "simkjels/samples/sampledata" in result.output
 
     def test_json_output_valid_array(self, tmp_path: Path):
         LocalRegistry(tmp_path / "registry").publish(DataPackage.model_validate(VALID_PKG))
@@ -65,7 +65,7 @@ class TestListWithData:
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["id"] == "simkjels.samples.sampledata"
+        assert data[0]["id"] == "simkjels/samples/sampledata"
 
 
 # ---------------------------------------------------------------------------

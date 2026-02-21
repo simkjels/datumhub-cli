@@ -20,7 +20,7 @@ VALID_SOURCE = {
 }
 
 VALID_PKG = {
-    "id": "met.no.oslo-hourly",
+    "id": "met/no/oslo-hourly",
     "version": "2024-01",
     "title": "Oslo Hourly Weather Data",
     "description": "Hourly weather observations for Oslo.",
@@ -119,23 +119,23 @@ class TestPublisherInfo:
 
 class TestDataPackageId:
     def test_valid_id(self):
-        pkg = DataPackage.model_validate(make_pkg(id="met.no.oslo-hourly"))
-        assert pkg.id == "met.no.oslo-hourly"
+        pkg = DataPackage.model_validate(make_pkg(id="met/no/oslo-hourly"))
+        assert pkg.id == "met/no/oslo-hourly"
 
     def test_id_with_numbers(self):
-        pkg = DataPackage.model_validate(make_pkg(id="org2.ns3.dataset1"))
+        pkg = DataPackage.model_validate(make_pkg(id="org2/ns3/dataset1"))
         assert pkg.publisher_slug == "org2"
 
     @pytest.mark.parametrize(
         "bad_id",
         [
-            "only-two.parts",           # only two segments
-            "four.parts.are.too.many",  # too many segments
-            "Met.no.data",              # uppercase
-            "met.no.data!",             # special char
-            "-met.no.data",             # leading hyphen
-            "met.no.data-",             # trailing hyphen
-            "met..data",                # empty segment
+            "only-two/parts",           # only two segments
+            "four/parts/are/too-many",  # too many segments
+            "Met/no/data",              # uppercase
+            "met/no/data!",             # special char
+            "-met/no/data",             # leading hyphen
+            "met/no/data-",             # trailing hyphen
+            "met//data",                # empty segment
             "",                         # empty
         ],
     )
@@ -159,7 +159,7 @@ class TestDataPackage:
     def test_valid_minimal(self):
         pkg = DataPackage.model_validate(
             {
-                "id": "a.b.c",
+                "id": "a/b/c",
                 "version": "1",
                 "title": "Test",
                 "publisher": {"name": "Test Org"},
@@ -171,7 +171,7 @@ class TestDataPackage:
     def test_optional_fields_default_to_none(self):
         pkg = DataPackage.model_validate(
             {
-                "id": "a.b.c",
+                "id": "a/b/c",
                 "version": "1",
                 "title": "Test",
                 "publisher": {"name": "Test Org"},
@@ -198,7 +198,7 @@ class TestDataPackage:
     def test_to_dict_excludes_none(self):
         pkg = DataPackage.model_validate(
             {
-                "id": "a.b.c",
+                "id": "a/b/c",
                 "version": "1",
                 "title": "Test",
                 "publisher": {"name": "Test Org"},
@@ -208,4 +208,4 @@ class TestDataPackage:
         d = pkg.to_dict()
         assert "description" not in d
         assert "license" not in d
-        assert d["id"] == "a.b.c"
+        assert d["id"] == "a/b/c"

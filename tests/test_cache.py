@@ -48,7 +48,7 @@ class TestCacheList:
         make_cache_entry(cache, "met", "no", "oslo-hourly", "1.0.0", {"data.csv": CONTENT})
         result = invoke(["cache", "list"], cache)
         assert result.exit_code == 0
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
         assert "1.0.0" in result.output
 
     def test_lists_multiple_entries(self, tmp_path):
@@ -56,8 +56,8 @@ class TestCacheList:
         make_cache_entry(cache, "met", "no", "oslo-hourly", "1.0.0", {"data.csv": CONTENT})
         make_cache_entry(cache, "simkjels", "samples", "sampledata", "0.1.0", {"sample.csv": CONTENT})
         result = invoke(["cache", "list"], cache)
-        assert "met.no.oslo-hourly" in result.output
-        assert "simkjels.samples.sampledata" in result.output
+        assert "met/no/oslo-hourly" in result.output
+        assert "simkjels/samples/sampledata" in result.output
 
     def test_json_output(self, tmp_path):
         cache = tmp_path / "cache"
@@ -67,7 +67,7 @@ class TestCacheList:
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["id"] == "met.no.oslo-hourly"
+        assert data[0]["id"] == "met/no/oslo-hourly"
         assert data[0]["version"] == "1.0.0"
         assert data[0]["size"] == len(CONTENT)
 

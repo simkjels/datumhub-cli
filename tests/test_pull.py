@@ -21,7 +21,7 @@ from datum.registry.local import LocalRegistry
 runner = CliRunner()
 
 VALID_PKG = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data Text File",
     "publisher": {"name": "Simen Kjelsrud"},
@@ -87,17 +87,17 @@ def invoke(args: list, tmp_path: Path, cache_path: Path, dest_root: Path | None 
 class TestPullBadIdentifier:
     def test_two_part_identifier_exits_1(self, tmp_path):
         cache = tmp_path / "cache"
-        result = invoke(["pull", "bad.identifier"], tmp_path, cache)
+        result = invoke(["pull", "bad/identifier"], tmp_path, cache)
         assert result.exit_code == 1
 
     def test_uppercase_slug_exits_1(self, tmp_path):
         cache = tmp_path / "cache"
-        result = invoke(["pull", "Bad.x.y:1.0"], tmp_path, cache)
+        result = invoke(["pull", "Bad/x/y:1.0"], tmp_path, cache)
         assert result.exit_code == 1
 
     def test_bad_identifier_json_output(self, tmp_path):
         cache = tmp_path / "cache"
-        result = invoke(["--output", "json", "pull", "bad.id"], tmp_path, cache)
+        result = invoke(["--output", "json", "pull", "bad/id"], tmp_path, cache)
         assert result.exit_code == 1
         data = json.loads(result.output)
         assert data["downloaded"] is False
@@ -112,13 +112,13 @@ class TestPullBadIdentifier:
 class TestPullNotFound:
     def test_unknown_package_exits_1(self, tmp_path):
         cache = tmp_path / "cache"
-        result = invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache)
+        result = invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
         assert result.exit_code == 1
 
     def test_unknown_package_json_output(self, tmp_path):
         cache = tmp_path / "cache"
         result = invoke(
-            ["--output", "json", "pull", "simkjels.samples.sampledata:0.1.0"],
+            ["--output", "json", "pull", "simkjels/samples/sampledata:0.1.0"],
             tmp_path,
             cache,
         )
@@ -138,7 +138,7 @@ class TestPullDownload:
         publish_pkg(tmp_path / "registry", VALID_PKG)
         cache = tmp_path / "cache"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            result = invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache)
+            result = invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
         assert result.exit_code == 0, result.output
 
     def test_download_creates_file_in_dest(self, tmp_path):
@@ -146,7 +146,7 @@ class TestPullDownload:
         cache = tmp_path / "cache"
         dest_root = tmp_path / "dest"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache, dest_root)
+            invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root)
         dest_dir = dest_root / "sampledata"
         files = list(dest_dir.iterdir())
         assert len(files) == 1
@@ -156,7 +156,7 @@ class TestPullDownload:
         publish_pkg(tmp_path / "registry", VALID_PKG)
         cache = tmp_path / "cache"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache)
+            invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
         cache_file = cache / "simkjels" / "samples" / "sampledata" / "0.1.0" / "sample.csv"
         assert cache_file.exists()
 
@@ -172,7 +172,7 @@ class TestPullDownload:
         mock_stream = MagicMock()
         with patch("httpx.stream", mock_stream):
             result = invoke(
-                ["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache, dest_root
+                ["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root
             )
 
         assert result.exit_code == 0
@@ -191,7 +191,7 @@ class TestPullDownload:
         mock_stream = MagicMock()
         with patch("httpx.stream", mock_stream):
             result = invoke(
-                ["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache, dest_root
+                ["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root
             )
 
         assert result.exit_code == 0
@@ -213,7 +213,7 @@ class TestPullDownload:
 
         with patch("httpx.stream", make_fake_stream([CONTENT])):
             result = invoke(
-                ["pull", "--force", "simkjels.samples.sampledata:0.1.0"],
+                ["pull", "--force", "simkjels/samples/sampledata:0.1.0"],
                 tmp_path,
                 cache,
                 dest_root,
@@ -244,7 +244,7 @@ class TestPullChecksum:
         publish_pkg(tmp_path / "registry", pkg)
         cache = tmp_path / "cache"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            result = invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache)
+            result = invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
         assert result.exit_code == 0
 
     def test_wrong_checksum_exits_1(self, tmp_path):
@@ -261,7 +261,7 @@ class TestPullChecksum:
         publish_pkg(tmp_path / "registry", pkg)
         cache = tmp_path / "cache"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            result = invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache)
+            result = invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
         assert result.exit_code == 1
 
     def test_wrong_checksum_deletes_cache_file(self, tmp_path):
@@ -279,7 +279,7 @@ class TestPullChecksum:
         cache = tmp_path / "cache"
         dest_root = tmp_path / "dest"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache, dest_root)
+            invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root)
         cache_file = cache / "simkjels" / "samples" / "sampledata" / "0.1.0" / "sample.csv"
         dest_file = dest_root / "sampledata" / "sample.csv"
         assert not cache_file.exists()
@@ -298,7 +298,7 @@ class TestPullJsonOutput:
         dest_root = tmp_path / "dest"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
             result = invoke(
-                ["--output", "json", "pull", "simkjels.samples.sampledata:0.1.0"],
+                ["--output", "json", "pull", "simkjels/samples/sampledata:0.1.0"],
                 tmp_path,
                 cache,
                 dest_root,
@@ -306,7 +306,7 @@ class TestPullJsonOutput:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["downloaded"] is True
-        assert data["id"] == "simkjels.samples.sampledata"
+        assert data["id"] == "simkjels/samples/sampledata"
         assert data["version"] == "0.1.0"
         assert isinstance(data["files"], list)
         assert len(data["files"]) == 1
@@ -324,7 +324,7 @@ class TestPullJsonOutput:
         (cache_dir / "sample.csv").write_bytes(CONTENT)
 
         result = invoke(
-            ["--output", "json", "pull", "simkjels.samples.sampledata:0.1.0"],
+            ["--output", "json", "pull", "simkjels/samples/sampledata:0.1.0"],
             tmp_path,
             cache,
             dest_root,
@@ -346,7 +346,7 @@ class TestPullNetworkError:
         publish_pkg(tmp_path / "registry", VALID_PKG)
         cache = tmp_path / "cache"
         with patch("httpx.stream", make_error_stream()):
-            result = invoke(["pull", "simkjels.samples.sampledata:0.1.0"], tmp_path, cache)
+            result = invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
         assert result.exit_code == 2
 
     def test_network_error_json_output(self, tmp_path):
@@ -354,7 +354,7 @@ class TestPullNetworkError:
         cache = tmp_path / "cache"
         with patch("httpx.stream", make_error_stream()):
             result = invoke(
-                ["--output", "json", "pull", "simkjels.samples.sampledata:0.1.0"],
+                ["--output", "json", "pull", "simkjels/samples/sampledata:0.1.0"],
                 tmp_path,
                 cache,
             )
@@ -380,12 +380,12 @@ class TestPullLatest:
         cache = tmp_path / "cache"
         dest_root = tmp_path / "dest"
         with patch("httpx.stream", make_fake_stream([CONTENT])):
-            result = invoke(["pull", "simkjels.samples.sampledata"], tmp_path, cache, dest_root)
+            result = invoke(["pull", "simkjels/samples/sampledata"], tmp_path, cache, dest_root)
 
         assert result.exit_code == 0
         assert (dest_root / "sampledata" / "sample.csv").exists()
 
     def test_latest_not_in_registry_exits_1(self, tmp_path):
         cache = tmp_path / "cache"
-        result = invoke(["pull", "simkjels.samples.sampledata"], tmp_path, cache)
+        result = invoke(["pull", "simkjels/samples/sampledata"], tmp_path, cache)
         assert result.exit_code == 1

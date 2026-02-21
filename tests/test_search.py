@@ -14,7 +14,7 @@ from datum.registry.local import LocalRegistry
 runner = CliRunner()
 
 PKG_A = {
-    "id": "met.no.oslo-hourly",
+    "id": "met/no/oslo-hourly",
     "version": "1.0.0",
     "title": "Oslo Hourly Weather",
     "publisher": {"name": "Meteorologisk institutt"},
@@ -24,7 +24,7 @@ PKG_A = {
 }
 
 PKG_B = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data Text File",
     "publisher": {"name": "Simen Kjelsrud"},
@@ -77,34 +77,34 @@ class TestSearchNoMatches:
 class TestSearchMatching:
     def test_matches_id(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)
-        result = invoke(["search", "met.no"], tmp_path)
+        result = invoke(["search", "met/no"], tmp_path)
         assert result.exit_code == 0
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
     def test_matches_title(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)
         result = invoke(["search", "hourly weather"], tmp_path)
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
     def test_matches_publisher(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)
         result = invoke(["search", "meteorologisk"], tmp_path)
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
     def test_matches_description(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)
         result = invoke(["search", "observations"], tmp_path)
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
     def test_matches_tag(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)
         result = invoke(["search", "norway"], tmp_path)
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
     def test_case_insensitive(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)
         result = invoke(["search", "OSLO"], tmp_path)
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -118,16 +118,16 @@ class TestSearchMultiple:
         publish_pkg(reg, PKG_A)
         publish_pkg(reg, PKG_B)
         result = invoke(["search", "oslo"], tmp_path)
-        assert "met.no.oslo-hourly" in result.output
-        assert "simkjels.samples.sampledata" not in result.output
+        assert "met/no/oslo-hourly" in result.output
+        assert "simkjels/samples/sampledata" not in result.output
 
     def test_returns_all_matching_packages(self, tmp_path):
         reg = tmp_path / "registry"
         publish_pkg(reg, PKG_A)
         publish_pkg(reg, PKG_B)
         result = invoke(["search", "sample"], tmp_path)
-        assert "simkjels.samples.sampledata" in result.output
-        assert "met.no.oslo-hourly" not in result.output
+        assert "simkjels/samples/sampledata" in result.output
+        assert "met/no/oslo-hourly" not in result.output
 
     def test_result_count_shown(self, tmp_path):
         reg = tmp_path / "registry"
@@ -151,7 +151,7 @@ class TestSearchJson:
         data = json.loads(result.output)
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["id"] == "met.no.oslo-hourly"
+        assert data[0]["id"] == "met/no/oslo-hourly"
 
     def test_json_includes_full_package(self, tmp_path):
         publish_pkg(tmp_path / "registry", PKG_A)

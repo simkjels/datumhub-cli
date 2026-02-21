@@ -13,7 +13,7 @@ from rich.table import Table
 
 from datum.console import console, err_console
 from datum.models import DataPackage
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
@@ -41,16 +41,6 @@ def cmd_publish(
     """
     output_fmt = state.output
     quiet = state.quiet
-
-    if state.registry and state.registry.startswith(("http://", "https://")):
-        if output_fmt == OutputFormat.json:
-            _emit_json(published=False, error="Remote registry publishing is not yet implemented.")
-        else:
-            err_console.print(
-                "\n[error]✗[/error] Remote registry publishing is not yet implemented.\n"
-                "Remove [bold]--registry[/bold] to publish to the local registry."
-            )
-        raise typer.Exit(code=1)
 
     # 1. File existence
     if not file.exists():
@@ -92,9 +82,16 @@ def cmd_publish(
         raise typer.Exit(code=1)
 
     # 4. Publish to registry
-    registry = get_local_registry()
+    registry = get_registry()
+    is_remote = state.registry.startswith(("http://", "https://")) if state.registry else False
     try:
-        path = registry.publish(pkg, overwrite=force)
+        result = registry.publish(pkg, overwrite=force)
+    except PermissionError as exc:
+        if output_fmt == OutputFormat.json:
+            _emit_json(published=False, id=pkg.id, version=pkg.version, error=str(exc))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=1)
     except FileExistsError as exc:
         if output_fmt == OutputFormat.json:
             _emit_json(published=False, id=pkg.id, version=pkg.version, error=str(exc))
@@ -105,12 +102,24 @@ def cmd_publish(
                 "  Use [bold]datum publish --force[/bold] to overwrite."
             )
         raise typer.Exit(code=1)
+    except RuntimeError as exc:
+        if output_fmt == OutputFormat.json:
+            _emit_json(published=False, id=pkg.id, version=pkg.version, error=str(exc))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
 
     # 5. Success
-    if output_fmt == OutputFormat.json:
-        _emit_json(published=True, id=pkg.id, version=pkg.version, path=str(path))
+    if is_remote:
+        if output_fmt == OutputFormat.json:
+            _emit_json(published=True, id=pkg.id, version=pkg.version)
+        else:
+            _print_success_remote(pkg=pkg, registry_url=state.registry, quiet=quiet)
     else:
-        _print_success(pkg=pkg, path=path, registry=registry.root, quiet=quiet)
+        if output_fmt == OutputFormat.json:
+            _emit_json(published=True, id=pkg.id, version=pkg.version, path=str(result))
+        else:
+            _print_success(pkg=pkg, path=result, registry=registry.root, quiet=quiet)
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +166,29 @@ def _print_success(pkg: DataPackage, path: Path, registry: Path, quiet: bool) ->
     table.add_column("value")
     table.add_row("Registry", str(registry))
     table.add_row("Path", str(path))
+
+    console.print(table)
+    console.print()
+
+
+def _print_success_remote(pkg: DataPackage, registry_url: str, quiet: bool) -> None:
+    if quiet:
+        return
+
+    console.print()
+    console.print(
+        Panel(
+            f"[success]✓ Published[/success]  [muted]·[/muted]  "
+            f"[bold]{pkg.id}@{pkg.version}[/bold]",
+            border_style="green",
+            padding=(0, 2),
+        )
+    )
+
+    table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
+    table.add_column("key", style="key", min_width=10)
+    table.add_column("value")
+    table.add_row("Registry", registry_url)
 
     console.print(table)
     console.print()

@@ -26,7 +26,7 @@ def get_cache_root() -> Path:
 
 
 class CacheEntry(NamedTuple):
-    dataset_id: str   # publisher.namespace.dataset
+    dataset_id: str   # publisher/namespace/dataset
     version: str
     files: List[Path]
 
@@ -53,7 +53,7 @@ def _scan_cache(root: Path) -> List[CacheEntry]:
                     if not ver_dir.is_dir():
                         continue
                     files = [f for f in ver_dir.iterdir() if f.is_file()]
-                    dataset_id = f"{pub_dir.name}.{ns_dir.name}.{ds_dir.name}"
+                    dataset_id = f"{pub_dir.name}/{ns_dir.name}/{ds_dir.name}"
                     entries.append(CacheEntry(dataset_id, ver_dir.name, files))
     return entries
 

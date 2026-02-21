@@ -3,15 +3,18 @@ from __future__ import annotations
 import re
 from typing import List, Optional
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Patterns
 # ---------------------------------------------------------------------------
 
-# Each slug: lowercase letters, digits, hyphens; must not start/end with hyphen.
+# Slug: lowercase letters, digits, hyphens; must not start/end with hyphen.
 _SLUG = r"[a-z0-9]([a-z0-9-]*[a-z0-9])?"
-ID_PATTERN = re.compile(rf"^{_SLUG}\.{_SLUG}\.{_SLUG}$")
+# Publisher: like a slug but also allows dots (for domain-based publishers, e.g. norge.no)
+_PUBLISHER = r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?"
+# Full identifier: publisher/namespace/dataset  (publisher may contain dots)
+ID_PATTERN = re.compile(rf"^{_PUBLISHER}/{_SLUG}/{_SLUG}$")
 SLUG_PATTERN = re.compile(rf"^{_SLUG}$")
 CHECKSUM_PATTERN = re.compile(r"^(sha256|sha512|md5):[a-f0-9]+$")
 
@@ -97,9 +100,12 @@ class DataPackage(BaseModel):
     """
     The datapackage.json schema.
 
-    Identifiers follow the format:  publisher.namespace.dataset
-    Each segment is a lowercase slug (letters, digits, hyphens).
+    Identifiers follow the format:  publisher/namespace/dataset
+    Publisher may contain dots for domain-based publishers (e.g. norge.no/population/census).
+    Namespace and dataset are lowercase slugs (letters, digits, hyphens).
     """
+
+    model_config = ConfigDict(extra="ignore")
 
     id: str
     version: str
@@ -118,9 +124,9 @@ class DataPackage(BaseModel):
         if not ID_PATTERN.match(v):
             raise ValueError(
                 f"Invalid identifier format '{v}'. "
-                "Expected publisher.namespace.dataset "
-                "(three dot-separated slugs of lowercase letters, digits, and hyphens — "
-                "e.g. met.no.oslo-hourly)"
+                "Expected publisher/namespace/dataset "
+                "(slash-separated — publisher may contain dots for domains, "
+                "e.g. norge.no/population/census or simkjels/samples/demo)"
             )
         return v
 
@@ -151,15 +157,15 @@ class DataPackage(BaseModel):
 
     @property
     def publisher_slug(self) -> str:
-        return self.id.split(".")[0]
+        return self.id.split("/")[0]
 
     @property
     def namespace_slug(self) -> str:
-        return self.id.split(".")[1]
+        return self.id.split("/")[1]
 
     @property
     def dataset_slug(self) -> str:
-        return self.id.split(".")[2]
+        return self.id.split("/")[2]
 
     def to_dict(self) -> dict:
         return self.model_dump(exclude_none=True)

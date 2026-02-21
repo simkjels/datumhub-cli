@@ -9,7 +9,7 @@ from rich import box
 from rich.table import Table
 
 from datum.console import console, err_console
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
@@ -27,34 +27,37 @@ def cmd_list() -> None:
     output_fmt = state.output
     quiet = state.quiet
 
-    if state.registry and state.registry.startswith(("http://", "https://")):
+    registry = get_registry()
+    try:
+        packages = registry.list()
+    except RuntimeError as exc:
         if output_fmt == OutputFormat.json:
-            print(json.dumps({"error": "Remote registry listing is not yet implemented."}, indent=2))
+            print(json.dumps({"error": str(exc)}, indent=2))
         else:
-            err_console.print(
-                "\n[error]✗[/error] Remote registry listing is not yet implemented.\n"
-                "Remove [bold]--registry[/bold] to list the local registry."
-            )
-        raise typer.Exit(code=1)
-
-    registry = get_local_registry()
-    packages = registry.list()
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
 
     if output_fmt == OutputFormat.json:
         print(json.dumps([p.to_dict() for p in packages], indent=2, ensure_ascii=False))
         return
 
+    is_remote = bool(state.registry and state.registry.startswith(("http://", "https://")))
+
     if not packages:
         if not quiet:
             console.print()
-            console.print("  [muted]No datasets in local registry.[/muted]")
-            console.print("  Run [bold]datum publish[/bold] to add one.")
+            if is_remote:
+                console.print("  [muted]No datasets found.[/muted]")
+            else:
+                console.print("  [muted]No datasets in local registry.[/muted]")
+                console.print("  Run [bold]datum publish[/bold] to add one.")
             console.print()
         return
 
     if not quiet:
         console.print()
-        console.print(f"  [bold]{len(packages)}[/bold] dataset(s) in local registry\n")
+        location = state.registry if is_remote else "local registry"
+        console.print(f"  [bold]{len(packages)}[/bold] dataset(s) in {location}\n")
 
         table = Table(box=box.SIMPLE, show_header=True, header_style="bold white")
         table.add_column("ID", style="identifier", min_width=30)

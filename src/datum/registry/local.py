@@ -16,7 +16,7 @@ class LocalRegistry:
         self.root = root
 
     def _pkg_path(self, id: str, version: str) -> Path:
-        pub, ns, ds = id.split(".")
+        pub, ns, ds = id.split("/")
         return self.root / pub / ns / ds / f"{version}.json"
 
     def publish(self, pkg: DataPackage, overwrite: bool = False) -> Path:
@@ -60,10 +60,10 @@ class LocalRegistry:
         if not all_ids:
             return []
 
-        # If publisher.namespace prefix is known, suggest only within that namespace
-        parts = id_part.split(".")
+        # If publisher/namespace prefix is known, suggest only within that namespace
+        parts = id_part.split("/")
         if len(parts) == 3:
-            prefix = f"{parts[0]}.{parts[1]}."
+            prefix = f"{parts[0]}/{parts[1]}/"
             scoped = [id for id in all_ids if id.startswith(prefix)]
             if scoped:
                 return difflib.get_close_matches(id_part, scoped, n=n, cutoff=0.5)
@@ -87,7 +87,7 @@ class LocalRegistry:
 
     def versions(self, id: str) -> List[str]:
         """Return all published versions for a dataset id."""
-        pub, ns, ds = id.split(".")
+        pub, ns, ds = id.split("/")
         folder = self.root / pub / ns / ds
         if not folder.exists():
             return []
@@ -95,7 +95,7 @@ class LocalRegistry:
 
     def latest(self, id: str) -> Optional[DataPackage]:
         """Return the most recently published version for a dataset id."""
-        pub, ns, ds = id.split(".")
+        pub, ns, ds = id.split("/")
         folder = self.root / pub / ns / ds
         if not folder.exists():
             return None
@@ -114,3 +114,12 @@ def get_local_registry() -> LocalRegistry:
     if state.registry and not state.registry.startswith(("http://", "https://")):
         return LocalRegistry(Path(state.registry).expanduser())
     return LocalRegistry(Path("~/.datum/registry").expanduser())
+
+
+def get_registry():
+    """Return a RemoteRegistry or LocalRegistry based on state.registry."""
+    if state.registry and state.registry.startswith(("http://", "https://")):
+        from datum.registry.remote import RemoteRegistry
+
+        return RemoteRegistry(state.registry)
+    return get_local_registry()

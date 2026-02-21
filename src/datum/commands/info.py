@@ -11,7 +11,7 @@ from rich.table import Table
 
 from datum.console import console, err_console
 from datum.models import ID_PATTERN
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
@@ -46,14 +46,21 @@ def cmd_info(
         else:
             err_console.print(
                 f"\n[error]✗[/error] Invalid identifier: [bold]{id_part}[/bold]\n\n"
-                "  Expected [bold]publisher.namespace.dataset[/bold] "
-                "(three dot-separated slugs — e.g. met.no.oslo-hourly)"
+                "  Expected [bold]publisher/namespace/dataset[/bold] "
+                "(slash-separated — e.g. norge.no/population/census)"
             )
         raise typer.Exit(code=1)
 
     # Resolve
-    registry = get_local_registry()
-    pkg = registry.latest(id_part) if version == "latest" else registry.get(id_part, version)
+    registry = get_registry()
+    try:
+        pkg = registry.latest(id_part) if version == "latest" else registry.get(id_part, version)
+    except RuntimeError as exc:
+        if output_fmt == OutputFormat.json:
+            print(json.dumps({"error": str(exc)}, indent=2))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
 
     if pkg is None:
         label = f"{id_part}:{version}"

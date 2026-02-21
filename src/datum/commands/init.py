@@ -159,16 +159,16 @@ def cmd_init(
     # -----------------------------------------------------------------------
     console.print(Rule("[bold]Step 1 · Dataset Identifier[/bold]", style="cyan"))
     console.print(
-        "  The identifier format is [bold cyan]publisher.namespace.dataset[/bold cyan]\n"
-        "  Each part uses lowercase letters, digits, and hyphens.\n"
-        "  Example: [identifier]met.no.oslo-hourly[/identifier]"
+        "  The identifier format is [bold cyan]publisher/namespace/dataset[/bold cyan]\n"
+        "  Publisher may be a domain (e.g. [bold]norge.no[/bold]) or a simple slug.\n"
+        "  Example: [identifier]norge.no/population/census[/identifier]  or  [identifier]simkjels/samples/demo[/identifier]"
     )
     console.print()
 
-    publisher_slug = _prompt_slug("Publisher slug  (e.g. met, open-data-eu)")
-    namespace_slug = _prompt_slug("Namespace slug  (e.g. weather, transport)")
-    dataset_slug = _prompt_slug("Dataset slug    (e.g. oslo-hourly, prices)")
-    identifier = f"{publisher_slug}.{namespace_slug}.{dataset_slug}"
+    publisher_slug = _prompt_slug("Publisher slug  (e.g. norge.no, simkjels)")
+    namespace_slug = _prompt_slug("Namespace slug  (e.g. population, weather)")
+    dataset_slug = _prompt_slug("Dataset slug    (e.g. census, oslo-hourly)")
+    identifier = f"{publisher_slug}/{namespace_slug}/{dataset_slug}"
     console.print(f"\n  [success]✓[/success] Identifier: [identifier]{identifier}[/identifier]\n")
 
     # -----------------------------------------------------------------------

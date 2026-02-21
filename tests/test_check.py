@@ -14,7 +14,7 @@ from datum.state import state, OutputFormat
 runner = CliRunner()
 
 VALID_PKG = {
-    "id": "met.no.oslo-hourly",
+    "id": "met/no/oslo-hourly",
     "version": "2024-01",
     "title": "Oslo Hourly Weather Data",
     "publisher": {"name": "Norwegian Meteorological Institute", "url": "https://met.no"},
@@ -42,7 +42,7 @@ class TestCheckValid:
     def test_output_contains_identifier(self, tmp_path: Path):
         f = write_pkg(tmp_path, VALID_PKG)
         result = runner.invoke(app, ["check", str(f)])
-        assert "met.no.oslo-hourly" in result.output
+        assert "met/no/oslo-hourly" in result.output
 
     def test_json_output_valid_true(self, tmp_path: Path):
         f = write_pkg(tmp_path, VALID_PKG)
@@ -57,14 +57,14 @@ class TestCheckValid:
         f = write_pkg(tmp_path, VALID_PKG)
         result = runner.invoke(app, ["--output", "json", "check", str(f)])
         data = json.loads(result.output)
-        assert data["package"]["id"] == "met.no.oslo-hourly"
+        assert data["package"]["id"] == "met/no/oslo-hourly"
 
     def test_quiet_flag_suppresses_table(self, tmp_path: Path):
         f = write_pkg(tmp_path, VALID_PKG)
         result = runner.invoke(app, ["--quiet", "check", str(f)])
         assert result.exit_code == 0
         # Quiet mode should produce no table output
-        assert "met.no.oslo-hourly" not in result.output
+        assert "met/no/oslo-hourly" not in result.output
 
 
 # ---------------------------------------------------------------------------

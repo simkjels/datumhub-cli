@@ -15,7 +15,7 @@ from datum.registry.local import LocalRegistry
 runner = CliRunner()
 
 VALID_PKG = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data Text File",
     "publisher": {"name": "Simen Kjelsrud", "url": "https://example.com"},
@@ -51,15 +51,15 @@ def invoke(args: list, tmp_path: Path):
 
 class TestInfoBadIdentifier:
     def test_two_part_identifier_exits_1(self, tmp_path):
-        result = invoke(["info", "bad.identifier"], tmp_path)
+        result = invoke(["info", "bad/identifier"], tmp_path)
         assert result.exit_code == 1
 
     def test_uppercase_slug_exits_1(self, tmp_path):
-        result = invoke(["info", "Bad.x.y"], tmp_path)
+        result = invoke(["info", "Bad/x/y"], tmp_path)
         assert result.exit_code == 1
 
     def test_bad_identifier_json_output(self, tmp_path):
-        result = invoke(["--output", "json", "info", "bad.id"], tmp_path)
+        result = invoke(["--output", "json", "info", "bad/id"], tmp_path)
         assert result.exit_code == 1
         data = json.loads(result.output)
         assert "error" in data
@@ -72,11 +72,11 @@ class TestInfoBadIdentifier:
 
 class TestInfoNotFound:
     def test_unknown_package_exits_1(self, tmp_path):
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert result.exit_code == 1
 
     def test_unknown_package_json_output(self, tmp_path):
-        result = invoke(["--output", "json", "info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["--output", "json", "info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert result.exit_code == 1
         data = json.loads(result.output)
         assert "error" in data
@@ -90,39 +90,39 @@ class TestInfoNotFound:
 class TestInfoSuccess:
     def test_exits_0_for_known_package(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert result.exit_code == 0, result.output
 
     def test_output_contains_id(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
-        assert "simkjels.samples.sampledata" in result.output
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
+        assert "simkjels/samples/sampledata" in result.output
 
     def test_output_contains_title(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert "Sample Data Text File" in result.output
 
     def test_output_contains_publisher(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert "Simen Kjelsrud" in result.output
 
     def test_output_contains_source_url(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         # Rich may truncate long URLs in the table; check the visible prefix
         assert "https://example.com" in result.output
 
     def test_output_contains_optional_fields(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert "CC-BY-4.0" in result.output
         assert "sample" in result.output  # tag
 
     def test_quiet_suppresses_output(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["--quiet", "info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["--quiet", "info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert result.exit_code == 0
         assert result.output.strip() == ""
 
@@ -138,12 +138,12 @@ class TestInfoLatest:
         publish_pkg(reg_path, VALID_PKG)
         time.sleep(0.02)
         publish_pkg(reg_path, {**VALID_PKG, "version": "0.2.0"})
-        result = invoke(["info", "simkjels.samples.sampledata"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata"], tmp_path)
         assert result.exit_code == 0
         assert "0.2.0" in result.output
 
     def test_latest_not_found_exits_1(self, tmp_path):
-        result = invoke(["info", "simkjels.samples.sampledata"], tmp_path)
+        result = invoke(["info", "simkjels/samples/sampledata"], tmp_path)
         assert result.exit_code == 1
 
 
@@ -155,10 +155,10 @@ class TestInfoLatest:
 class TestInfoJson:
     def test_json_output_is_valid(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["--output", "json", "info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["--output", "json", "info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data["id"] == "simkjels.samples.sampledata"
+        assert data["id"] == "simkjels/samples/sampledata"
         assert data["version"] == "0.1.0"
         assert data["title"] == "Sample Data Text File"
         assert isinstance(data["sources"], list)
@@ -166,7 +166,7 @@ class TestInfoJson:
 
     def test_json_includes_optional_fields(self, tmp_path):
         publish_pkg(tmp_path / "registry", VALID_PKG)
-        result = invoke(["--output", "json", "info", "simkjels.samples.sampledata:0.1.0"], tmp_path)
+        result = invoke(["--output", "json", "info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
         data = json.loads(result.output)
         assert data["description"] == "A sample CSV dataset."
         assert data["license"] == "CC-BY-4.0"

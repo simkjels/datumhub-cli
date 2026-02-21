@@ -9,7 +9,7 @@ import typer
 
 from datum.console import console, err_console
 from datum.models import ID_PATTERN
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
@@ -59,25 +59,42 @@ def cmd_unpublish(
         )
         raise typer.Exit(code=1)
 
-    registry = get_local_registry()
+    registry = get_registry()
 
-    # Collect versions to remove
+    # Fetch from registry — may raise RuntimeError for remote registries
+    try:
+        if all_versions:
+            versions_found = registry.versions(id_part)
+        else:
+            existing_pkg = registry.get(id_part, version)
+    except RuntimeError as exc:
+        if output_fmt == OutputFormat.json:
+            print(json.dumps({"unpublished": False, "error": str(exc)}))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
+
+    # Determine versions_to_remove — no registry access beyond this point
     if all_versions:
-        versions_to_remove = registry.versions(id_part)
-        if not versions_to_remove:
+        if not versions_found:
             if output_fmt == OutputFormat.json:
                 print(json.dumps({"unpublished": False, "error": f"Not found: {id_part}"}))
             else:
-                err_console.print(f"\n[error]✗[/error] No versions of [bold]{id_part}[/bold] found.\n")
+                err_console.print(
+                    f"\n[error]✗[/error] No versions of [bold]{id_part}[/bold] found.\n"
+                )
             raise typer.Exit(code=1)
+        versions_to_remove = versions_found
         label = f"{id_part} ({len(versions_to_remove)} version(s))"
     else:
-        if registry.get(id_part, version) is None:
+        if existing_pkg is None:
             label = f"{id_part}:{version}"
             if output_fmt == OutputFormat.json:
                 print(json.dumps({"unpublished": False, "error": f"Not found: {label}"}))
             else:
-                err_console.print(f"\n[error]✗[/error] [bold]{label}[/bold] not found in registry.\n")
+                err_console.print(
+                    f"\n[error]✗[/error] [bold]{label}[/bold] not found in registry.\n"
+                )
             raise typer.Exit(code=1)
         versions_to_remove = [version]
         label = f"{id_part}:{version}"
@@ -90,7 +107,20 @@ def cmd_unpublish(
             raise typer.Exit(code=0)
 
     # Remove
-    removed = [v for v in versions_to_remove if registry.unpublish(id_part, v)]
+    try:
+        removed = [v for v in versions_to_remove if registry.unpublish(id_part, v)]
+    except PermissionError as exc:
+        if output_fmt == OutputFormat.json:
+            print(json.dumps({"unpublished": False, "error": str(exc)}))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=1)
+    except RuntimeError as exc:
+        if output_fmt == OutputFormat.json:
+            print(json.dumps({"unpublished": False, "error": str(exc)}))
+        else:
+            err_console.print(f"\n[error]✗[/error] {exc}\n")
+        raise typer.Exit(code=2)
 
     if output_fmt == OutputFormat.json:
         print(json.dumps({

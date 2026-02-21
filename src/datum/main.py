@@ -14,6 +14,7 @@ from datum.commands.info import cmd_info
 from datum.commands.init import cmd_init
 from datum.commands.list import cmd_list
 from datum.commands.login import cmd_login, cmd_logout
+from datum.commands.register import cmd_register
 from datum.commands.publish import cmd_publish
 from datum.commands.pull import cmd_pull
 from datum.commands.search import cmd_search
@@ -98,6 +99,7 @@ app.command("publish", help="Publish dataset metadata to the registry.")(cmd_pub
 app.command("pull", help="Download a dataset by identifier and verify its checksum.")(cmd_pull)
 app.command("info", help="Show dataset metadata without downloading data files.")(cmd_info)
 app.command("search", help="Search the registry by keyword.")(cmd_search)
+app.command("register", help="Create an account on a Datum registry.")(cmd_register)
 app.command("login", help="Authenticate with a Datum registry.")(cmd_login)
 app.command("logout", help="Remove stored credentials for a registry.")(cmd_logout)
 app.command("unpublish", help="Remove a dataset version from the local registry.")(cmd_unpublish)

@@ -18,7 +18,7 @@ runner = CliRunner()
 CONTENT = b"col1,col2\n1,2\n3,4\n"
 
 PKG_V1 = {
-    "id": "simkjels.samples.sampledata",
+    "id": "simkjels/samples/sampledata",
     "version": "0.1.0",
     "title": "Sample Data",
     "publisher": {"name": "Simen Kjelsrud"},
@@ -32,7 +32,7 @@ def publish_pkg(registry_path: Path, pkg_dict: dict) -> None:
 
 
 def make_cache_entry(cache_root: Path, pkg_id: str, version: str) -> Path:
-    pub, ns, ds = pkg_id.split(".")
+    pub, ns, ds = pkg_id.split("/")
     d = cache_root / pub / ns / ds / version
     d.mkdir(parents=True)
     (d / "sample.csv").write_bytes(CONTENT)
@@ -71,24 +71,24 @@ class TestUpdateAlreadyLatest:
         reg_path = tmp_path / "registry"
         cache = tmp_path / "cache"
         publish_pkg(reg_path, PKG_V1)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
-        result = invoke(["update", "simkjels.samples.sampledata"], tmp_path, cache)
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
+        result = invoke(["update", "simkjels/samples/sampledata"], tmp_path, cache)
         assert result.exit_code == 0
 
     def test_output_says_up_to_date(self, tmp_path):
         reg_path = tmp_path / "registry"
         cache = tmp_path / "cache"
         publish_pkg(reg_path, PKG_V1)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
-        result = invoke(["update", "simkjels.samples.sampledata"], tmp_path, cache)
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
+        result = invoke(["update", "simkjels/samples/sampledata"], tmp_path, cache)
         assert "latest" in result.output.lower() or "up to date" in result.output.lower()
 
     def test_json_already_latest(self, tmp_path):
         reg_path = tmp_path / "registry"
         cache = tmp_path / "cache"
         publish_pkg(reg_path, PKG_V1)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
-        result = invoke(["--output", "json", "update", "simkjels.samples.sampledata"], tmp_path, cache)
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
+        result = invoke(["--output", "json", "update", "simkjels/samples/sampledata"], tmp_path, cache)
         data = json.loads(result.output)
         assert data["updated"] == []
         assert "already_latest" in data
@@ -106,8 +106,8 @@ class TestUpdateCheck:
         publish_pkg(reg_path, PKG_V1)
         time.sleep(0.02)
         publish_pkg(reg_path, PKG_V2)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
-        result = invoke(["update", "--check", "simkjels.samples.sampledata"], tmp_path, cache)
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
+        result = invoke(["update", "--check", "simkjels/samples/sampledata"], tmp_path, cache)
         assert result.exit_code == 0
         assert "0.2.0" in result.output
 
@@ -117,9 +117,9 @@ class TestUpdateCheck:
         publish_pkg(reg_path, PKG_V1)
         time.sleep(0.02)
         publish_pkg(reg_path, PKG_V2)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
         result = invoke(
-            ["--output", "json", "update", "--check", "simkjels.samples.sampledata"],
+            ["--output", "json", "update", "--check", "simkjels/samples/sampledata"],
             tmp_path, cache,
         )
         data = json.loads(result.output)
@@ -132,9 +132,9 @@ class TestUpdateCheck:
         publish_pkg(reg_path, PKG_V1)
         time.sleep(0.02)
         publish_pkg(reg_path, PKG_V2)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
         # v0.2.0 dir should not be created by --check
-        invoke(["update", "--check", "simkjels.samples.sampledata"], tmp_path, cache)
+        invoke(["update", "--check", "simkjels/samples/sampledata"], tmp_path, cache)
         pub, ns, ds = "simkjels", "samples", "sampledata"
         assert not (cache / pub / ns / ds / "0.2.0").exists()
 
@@ -165,7 +165,7 @@ class TestUpdateQuiet:
         reg_path = tmp_path / "registry"
         cache = tmp_path / "cache"
         publish_pkg(reg_path, PKG_V1)
-        make_cache_entry(cache, "simkjels.samples.sampledata", "0.1.0")
-        result = invoke(["--quiet", "update", "simkjels.samples.sampledata"], tmp_path, cache)
+        make_cache_entry(cache, "simkjels/samples/sampledata", "0.1.0")
+        result = invoke(["--quiet", "update", "simkjels/samples/sampledata"], tmp_path, cache)
         assert result.exit_code == 0
         assert result.output.strip() == ""
