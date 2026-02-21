@@ -11,7 +11,7 @@ from datum.main import app
 from datum.models import DataPackage
 from datum.registry.local import LocalRegistry
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 VALID_PKG = {
     "id": "simkjels.samples.sampledata",

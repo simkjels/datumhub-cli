@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from datum.main import app
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 REGISTRY = "https://datumhub.org"
 HOST = "datumhub.org"

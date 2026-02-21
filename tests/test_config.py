@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from datum.main import app
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 def invoke(args: list, config_path: Path):

@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from datum.main import app
 from datum.state import state, OutputFormat
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 VALID_PKG = {
     "id": "met.no.oslo-hourly",

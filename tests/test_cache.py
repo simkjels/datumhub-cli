@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from datum.main import app
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 CONTENT = b"col1,col2\n1,2\n3,4\n"
 
