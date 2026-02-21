@@ -11,7 +11,7 @@ datum pull norges-bank.reports.financial-stability:2024
 ## Installation
 
 ```bash
-pip install datum-cli
+pip install datumhub-cli
 ```
 
 Requires Python 3.11+.

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "datum-cli"
+name = "datumhub-cli"
 version = "0.1.0"
 description = "Open datasets, open source — a CLI for publishing and consuming open datasets."
 readme = "README.md"
