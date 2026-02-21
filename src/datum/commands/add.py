@@ -91,6 +91,19 @@ def cmd_add(
     file: Optional[Path] = typer.Option(
         None, "--file", "-f", help="Path to datapackage.json (defaults to nearest one found)"
     ),
+    # Metadata flags — used when creating a new datapackage.json, or to update an existing one
+    id_: Optional[str] = typer.Option(
+        None, "--id", help="Package identifier: publisher/namespace/dataset"
+    ),
+    title: Optional[str] = typer.Option(None, "--title", help="Human-readable dataset title"),
+    publisher: Optional[str] = typer.Option(None, "--publisher", help="Publisher name (e.g. 'Statistics Norway')"),
+    version: Optional[str] = typer.Option(None, "--version", help="Dataset version (e.g. 2024-01, 1.0.0)"),
+    description: Optional[str] = typer.Option(None, "--description", help="Short description of the dataset"),
+    license_: Optional[str] = typer.Option(None, "--license", help="License identifier (e.g. CC-BY-4.0)"),
+    tags: Optional[str] = typer.Option(
+        None, "--tags", help="Comma-separated tags (e.g. 'weather,norway,oslo')"
+    ),
+    # Source flags
     fmt: Optional[str] = typer.Option(
         None, "--format", help="Override detected file format (e.g. csv, parquet)"
     ),
@@ -110,43 +123,98 @@ def cmd_add(
     Each file is streamed to automatically compute its SHA-256 checksum
     and byte size — no manual work required.
 
-    [bold]Examples:[/bold]
+    When no datapackage.json exists yet, pass [bold]--id[/bold], [bold]--title[/bold],
+    [bold]--publisher[/bold], and [bold]--version[/bold] to create one on the fly:
+
+      datum add \\
+        --id simkjels/samples/oslo-weather \\
+        --title "Oslo Weather Observations" \\
+        --publisher "Met Norway" \\
+        --version 2024-01 \\
+        https://met.no/oslo-2024.csv
+
+    If a datapackage.json already exists, any metadata flags you pass
+    will update the corresponding fields in the file.
+
+    [bold]Other examples:[/bold]
 
       datum add https://example.com/data.csv
       datum add https://a.com/a.csv https://b.com/b.csv
       datum add --no-checksum https://example.com/large.parquet
       datum add --crawl https://example.com/datasets/
       datum add --crawl --filter '*.csv' https://s3.amazonaws.com/my-bucket/
-
-    Run from the directory containing your datapackage.json, or use
-    [bold]--file[/bold] to point to a specific one.
     """
     output_fmt = state.output
     quiet = state.quiet
 
-    # Find datapackage.json
+    metadata_flags = {
+        k: v for k, v in {
+            "id": id_,
+            "title": title,
+            "version": version,
+            "description": description,
+            "license": license_,
+            "tags": [t.strip() for t in tags.split(",") if t.strip()] if tags else None,
+        }.items()
+        if v is not None
+    }
+    if publisher is not None:
+        metadata_flags["publisher"] = {"name": publisher}
+
+    # ------------------------------------------------------------------
+    # Locate or create datapackage.json
+    # ------------------------------------------------------------------
     pkg_path = file or _find_datapackage()
+
     if pkg_path is None:
-        if output_fmt == OutputFormat.json:
-            print(json.dumps({"added": 0, "error": "No datapackage.json found. Run 'datum init' first."}))
-        else:
-            err_console.print(
-                "\n[error]✗[/error] No [bold]datapackage.json[/bold] found in this directory or any parent.\n"
-                "  Run [bold]datum init[/bold] to create one.\n"
-            )
-        raise typer.Exit(code=1)
+        # No existing file — need enough metadata to create one
+        missing = [f for f in ("id", "title", "version") if f not in metadata_flags] + (
+            ["publisher"] if publisher is None else []
+        )
+        if missing:
+            if output_fmt == OutputFormat.json:
+                print(json.dumps({
+                    "added": 0,
+                    "error": (
+                        f"No datapackage.json found. Pass {', '.join('--' + m for m in missing)} "
+                        "to create one, or run 'datum init' for the interactive wizard."
+                    ),
+                }))
+            else:
+                err_console.print(
+                    "\n[error]✗[/error] No [bold]datapackage.json[/bold] found.\n\n"
+                    "  Pass the following flags to create one:\n"
+                    + "".join(f"    [bold]--{m}[/bold]\n" for m in missing)
+                    + "\n  Or run [bold]datum init[/bold] for the interactive wizard.\n"
+                )
+            raise typer.Exit(code=1)
 
-    # Load existing package data
-    try:
-        pkg_data = json.loads(pkg_path.read_text())
-    except (json.JSONDecodeError, OSError) as exc:
-        err_console.print(f"\n[error]✗[/error] Could not read {pkg_path}: {exc}\n")
-        raise typer.Exit(code=2)
+        pkg_path = (file or Path.cwd()) / "datapackage.json"
+        pkg_data: dict = {}
+        if not quiet and output_fmt != OutputFormat.json:
+            console.print(f"\n  Creating [bold]{pkg_path.name}[/bold]\n")
+    else:
+        # Load existing file
+        try:
+            pkg_data = json.loads(pkg_path.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            err_console.print(f"\n[error]✗[/error] Could not read {pkg_path}: {exc}\n")
+            raise typer.Exit(code=2)
 
-    existing_sources: list = pkg_data.get("sources", [])
-    existing_urls = {s.get("url") for s in existing_sources}
+        # Warn if --id changes the existing id
+        if id_ is not None and pkg_data.get("id") and pkg_data["id"] != id_:
+            if output_fmt != OutputFormat.json:
+                console.print(
+                    f"\n  [warning]⚠[/warning]  Changing package ID: "
+                    f"[bold]{pkg_data['id']}[/bold] → [bold]{id_}[/bold]\n"
+                )
 
+    # Apply metadata flags to pkg_data
+    pkg_data.update(metadata_flags)
+
+    # ------------------------------------------------------------------
     # Resolve target URLs
+    # ------------------------------------------------------------------
     if crawl:
         if len(urls) != 1:
             err_console.print("\n[error]✗[/error] --crawl requires exactly one URL.\n")
@@ -174,17 +242,23 @@ def cmd_add(
         target_urls = list(urls)
 
     # Deduplicate against existing sources
+    existing_sources: list = pkg_data.get("sources", [])
+    existing_urls = {s.get("url") for s in existing_sources}
     new_urls = [u for u in target_urls if u not in existing_urls]
     skipped = len(target_urls) - len(new_urls)
 
     if not new_urls:
+        # Still write any metadata updates even if no new sources
+        pkg_path.write_text(json.dumps(pkg_data, indent=2, ensure_ascii=False) + "\n")
         if output_fmt == OutputFormat.json:
             print(json.dumps({"added": 0, "skipped": skipped, "message": "All URLs already present."}))
         elif not quiet:
             console.print("\n  [muted]All URLs are already in sources — nothing to add.[/muted]\n")
         return
 
-    # Fetch each URL
+    # ------------------------------------------------------------------
+    # Fetch / checksum each URL
+    # ------------------------------------------------------------------
     added_sources: List[dict] = []
     failed: List[str] = []
     show_progress = not quiet and output_fmt != OutputFormat.json
@@ -202,7 +276,6 @@ def cmd_add(
             source: dict = {"url": url, "format": fmt.lower().strip() if fmt else _detect_format(url)}
 
             if no_checksum:
-                # HEAD-only: just grab file size if available
                 try:
                     head = httpx.head(url, follow_redirects=True, timeout=15)
                     if cl := head.headers.get("content-length"):
@@ -214,7 +287,6 @@ def cmd_add(
                     console.print(f"  [success]✓[/success] {filename}  [muted](no checksum)[/muted]")
                 continue
 
-            # Stream to compute sha256 + size
             task = progress.add_task(filename, total=None)
             hasher = hashlib.sha256()
             size = 0
@@ -246,7 +318,9 @@ def cmd_add(
             print(json.dumps({"added": 0, "failed": failed}))
         raise typer.Exit(code=2)
 
+    # ------------------------------------------------------------------
     # Write updated datapackage.json
+    # ------------------------------------------------------------------
     pkg_data["sources"] = existing_sources + added_sources
     pkg_path.write_text(json.dumps(pkg_data, indent=2, ensure_ascii=False) + "\n")
 

@@ -337,3 +337,184 @@ class TestAddFileFlag:
         assert result.exit_code == 0, result.output
         pkg = json.loads(pkg_file.read_text())
         assert len(pkg["sources"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Metadata flags — create new datapackage.json
+# ---------------------------------------------------------------------------
+
+
+CREATE_FLAGS = [
+    "--id", "simkjels/samples/newdata",
+    "--title", "New Dataset",
+    "--publisher", "Simen",
+    "--version", "1.0.0",
+]
+
+
+class TestAddCreateNew:
+    def test_creates_file_with_all_required_flags(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            result = invoke(
+                ["add"] + CREATE_FLAGS + ["https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / "datapackage.json").exists()
+
+    def test_created_file_has_correct_metadata(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add"] + CREATE_FLAGS + ["https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["id"] == "simkjels/samples/newdata"
+        assert pkg["title"] == "New Dataset"
+        assert pkg["publisher"]["name"] == "Simen"
+        assert pkg["version"] == "1.0.0"
+        assert len(pkg["sources"]) == 1
+
+    def test_missing_id_flag_exits_1(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            result = invoke(
+                ["add", "--title", "T", "--publisher", "P", "--version", "1.0",
+                 "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        assert result.exit_code == 1
+
+    def test_missing_title_flag_exits_1(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            result = invoke(
+                ["add", "--id", "a/b/c", "--publisher", "P", "--version", "1.0",
+                 "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        assert result.exit_code == 1
+
+    def test_missing_publisher_flag_exits_1(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            result = invoke(
+                ["add", "--id", "a/b/c", "--title", "T", "--version", "1.0",
+                 "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        assert result.exit_code == 1
+
+    def test_missing_version_flag_exits_1(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            result = invoke(
+                ["add", "--id", "a/b/c", "--title", "T", "--publisher", "P",
+                 "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        assert result.exit_code == 1
+
+    def test_missing_flags_json_output_lists_missing(self, tmp_path):
+        result = invoke(
+            ["--output", "json", "add", "https://example.com/data.csv"],
+            cwd=tmp_path,
+        )
+        assert result.exit_code == 1
+        data = json.loads(result.output)
+        assert data["added"] == 0
+        assert "error" in data
+
+    def test_optional_flags_written(self, tmp_path):
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add"] + CREATE_FLAGS
+                + ["--description", "A desc", "--license", "CC-BY-4.0",
+                   "--tags", "weather,norway",
+                   "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["description"] == "A desc"
+        assert pkg["license"] == "CC-BY-4.0"
+        assert pkg["tags"] == ["weather", "norway"]
+
+
+# ---------------------------------------------------------------------------
+# Metadata flags — update existing datapackage.json
+# ---------------------------------------------------------------------------
+
+
+class TestAddUpdateMetadata:
+    def test_title_updated_in_existing_file(self, tmp_path):
+        write_pkg(tmp_path, VALID_PKG)
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add", "--title", "Updated Title", "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["title"] == "Updated Title"
+
+    def test_version_updated_in_existing_file(self, tmp_path):
+        write_pkg(tmp_path, VALID_PKG)
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add", "--version", "2.0.0", "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["version"] == "2.0.0"
+
+    def test_publisher_updated_in_existing_file(self, tmp_path):
+        write_pkg(tmp_path, VALID_PKG)
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add", "--publisher", "New Publisher", "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["publisher"]["name"] == "New Publisher"
+
+    def test_metadata_written_even_when_no_new_sources(self, tmp_path):
+        existing = {
+            **VALID_PKG,
+            "sources": [{"url": "https://example.com/data.csv", "format": "csv"}],
+        }
+        write_pkg(tmp_path, existing)
+        # URL already present — but metadata flag should still apply
+        invoke(
+            ["add", "--title", "Refreshed Title", "https://example.com/data.csv"],
+            cwd=tmp_path,
+        )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["title"] == "Refreshed Title"
+
+    def test_id_change_warns_user(self, tmp_path):
+        write_pkg(tmp_path, VALID_PKG)
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            result = invoke(
+                ["add", "--id", "simkjels/samples/other",
+                 "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        assert result.exit_code == 0, result.output
+        # Warning about ID change should appear in output
+        assert "simkjels/samples/other" in result.output
+
+    def test_id_change_updates_file(self, tmp_path):
+        write_pkg(tmp_path, VALID_PKG)
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add", "--id", "simkjels/samples/other",
+                 "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["id"] == "simkjels/samples/other"
+
+    def test_tags_updated_in_existing_file(self, tmp_path):
+        write_pkg(tmp_path, VALID_PKG)
+        with patch("httpx.stream", make_fake_stream(CONTENT)):
+            invoke(
+                ["add", "--tags", "a,b,c", "https://example.com/data.csv"],
+                cwd=tmp_path,
+            )
+        pkg = json.loads((tmp_path / "datapackage.json").read_text())
+        assert pkg["tags"] == ["a", "b", "c"]
