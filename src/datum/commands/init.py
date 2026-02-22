@@ -16,8 +16,11 @@ from rich.prompt import Confirm, Prompt
 from rich.rule import Rule
 from rich.text import Text
 
+from datum.commands.config import load_config
+from datum.commands.login import get_username_key
 from datum.console import console, err_console
 from datum.models import CHECKSUM_PATTERN, PUBLISHER_PATTERN, SLUG_PATTERN, DataPackage
+from datum.state import state
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +132,17 @@ def _prompt_checksum(label: str) -> Optional[str]:
         return value
 
 
+def _get_stored_username() -> Optional[str]:
+    """Return the username stored for the active registry, if any."""
+    registry = state.registry
+    if not registry or not registry.startswith(("http://", "https://")):
+        return None
+    host = urlparse(registry).netloc
+    if not host:
+        return None
+    return load_config().get(get_username_key(host))
+
+
 def _guess_format(url: str) -> str:
     """Guess a file format from the URL path extension."""
     path = urlparse(url).path
@@ -180,11 +194,15 @@ def cmd_init(
     console.print(
         "  The identifier format is [bold cyan]publisher/namespace/dataset[/bold cyan]\n"
         "  Publisher may be a domain (e.g. [bold]norge.no[/bold]) or a simple slug.\n"
-        "  Example: [identifier]norge.no/population/census[/identifier]  or  [identifier]simkjels/samples/demo[/identifier]"
+        "  Example: [identifier]norge.no/population/census[/identifier]  or  [identifier]acme/samples/demo[/identifier]"
     )
     console.print()
 
-    publisher_slug = _prompt_publisher_slug("Publisher slug  (e.g. norge.no, simkjels)")
+    stored_username = _get_stored_username()
+    if stored_username:
+        console.print(f"  [muted]Logged in as [bold]{stored_username}[/bold] — press Enter to use as publisher slug.[/muted]\n")
+
+    publisher_slug = _prompt_publisher_slug("Publisher slug", default=stored_username)
     namespace_slug = _prompt_slug("Namespace slug  (e.g. population, weather)")
     dataset_slug = _prompt_slug("Dataset slug    (e.g. census, oslo-hourly)")
     identifier = f"{publisher_slug}/{namespace_slug}/{dataset_slug}"

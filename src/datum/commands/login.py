@@ -19,6 +19,11 @@ def get_token_key(host: str) -> str:
     return f"token.{host}"
 
 
+def get_username_key(host: str) -> str:
+    """Config key used to store the username for a given registry host."""
+    return f"username.{host}"
+
+
 def cmd_login(
     url: str = typer.Argument(
         "https://datumhub.org",
@@ -42,15 +47,18 @@ def cmd_login(
     if not quiet and output_fmt != OutputFormat.json:
         console.print(f"\n  Logging in to [bold]{url}[/bold]\n")
 
+    collected_username: Optional[str] = None
     if token is None:
-        username = typer.prompt("  Username")
+        collected_username = typer.prompt("  Username")
         password = typer.prompt("  Password", hide_input=True)
-        token = _fetch_token(url, username, password, output_fmt)
+        token = _fetch_token(url, collected_username, password, output_fmt)
         if token is None:
             raise typer.Exit(code=1)
 
     cfg = load_config()
     cfg[get_token_key(host)] = token
+    if collected_username is not None:
+        cfg[get_username_key(host)] = collected_username
     save_config(cfg)
 
     if output_fmt == OutputFormat.json:
@@ -76,6 +84,7 @@ def cmd_logout(
     cfg = load_config()
     if key in cfg:
         del cfg[key]
+        cfg.pop(get_username_key(host), None)
         save_config(cfg)
 
     if output_fmt == OutputFormat.json:
