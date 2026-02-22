@@ -133,14 +133,26 @@ def _prompt_checksum(label: str) -> Optional[str]:
 
 
 def _get_stored_username() -> Optional[str]:
-    """Return the username stored for the active registry, if any."""
-    registry = state.registry
-    if not registry or not registry.startswith(("http://", "https://")):
-        return None
-    host = urlparse(registry).netloc
-    if not host:
-        return None
-    return load_config().get(get_username_key(host))
+    """Return the username stored for the active registry, if any.
+
+    Checks the explicit registry from state first, then falls back to
+    scanning config for any stored username (covers the common case where
+    the user logged in but hasn't set a default registry in config).
+    """
+    cfg = load_config()
+
+    # Prefer the explicitly active registry
+    registry = state.registry or cfg.get("registry", "")
+    if registry and registry.startswith(("http://", "https://")):
+        host = urlparse(registry).netloc
+        if host:
+            value = cfg.get(get_username_key(host))
+            if value:
+                return value
+
+    # Fall back: if exactly one username.* key exists, use it
+    usernames = [v for k, v in cfg.items() if k.startswith("username.")]
+    return usernames[0] if len(usernames) == 1 else None
 
 
 def _guess_format(url: str) -> str:
