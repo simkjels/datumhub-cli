@@ -10,7 +10,7 @@ from datum.__init__ import __version__
 from datum.commands.add import cmd_add
 from datum.commands.cache import cache_app
 from datum.commands.check import cmd_check
-from datum.commands.config import config_app
+from datum.commands.config import config_app, load_config
 from datum.commands.info import cmd_info
 from datum.commands.init import cmd_init
 from datum.commands.list import cmd_list
@@ -84,7 +84,7 @@ def _root(
         typer.echo(f"datum {__version__}")
         raise typer.Exit()
 
-    state.registry = registry or ""
+    state.registry = registry or load_config().get("registry", "")
     state.output = output
     state.quiet = quiet
     state.verbose = verbose
