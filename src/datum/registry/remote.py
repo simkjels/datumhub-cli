@@ -28,15 +28,24 @@ class RemoteRegistry:
     # ------------------------------------------------------------------
 
     def list(self, q: str = "") -> List[DataPackage]:
-        params: dict = {"limit": 500}
-        if q:
-            params["q"] = q
-        try:
-            resp = httpx.get(f"{self.url}/api/v1/packages", params=params, timeout=10)
-        except httpx.HTTPError as exc:
-            raise RuntimeError(f"Registry unreachable: {exc}") from exc
-        resp.raise_for_status()
-        return [DataPackage.model_validate(item) for item in resp.json()["items"]]
+        results: List[DataPackage] = []
+        offset = 0
+        limit = 100
+        while True:
+            params: dict = {"limit": limit, "offset": offset}
+            if q:
+                params["q"] = q
+            try:
+                resp = httpx.get(f"{self.url}/api/v1/packages", params=params, timeout=10)
+            except httpx.HTTPError as exc:
+                raise RuntimeError(f"Registry unreachable: {exc}") from exc
+            resp.raise_for_status()
+            data = resp.json()
+            results.extend(DataPackage.model_validate(item) for item in data["items"])
+            if not data.get("has_next"):
+                break
+            offset += limit
+        return results
 
     def get(self, id: str, version: str) -> Optional[DataPackage]:
         try:
