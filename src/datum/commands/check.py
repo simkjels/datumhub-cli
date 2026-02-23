@@ -184,17 +184,17 @@ def _print_success(file: Path, pkg: DataPackage, quiet: bool) -> None:
     sources_with_checksum = sum(1 for s in pkg.sources if s.checksum)
     if sources_with_checksum == 0:
         table.add_row(
-            "Checksums",
-            "[warning]None — add sha256 checksums to your sources for integrity verification[/warning]",
+            "File integrity",
+            "[warning]Not verified — run [bold]datum add[/bold] to enable integrity checks for your sources[/warning]",
         )
     elif sources_with_checksum < len(pkg.sources):
         missing = len(pkg.sources) - sources_with_checksum
         table.add_row(
-            "Checksums",
-            f"[warning]{missing} source(s) missing a checksum[/warning]",
+            "File integrity",
+            f"[warning]{missing} source(s) not verified — run [bold]datum add[/bold] to fix[/warning]",
         )
     else:
-        table.add_row("Checksums", "[success]✓ All sources have checksums[/success]")
+        table.add_row("File integrity", "[success]✓ All sources verified[/success]")
 
     console.print(table)
     console.print()

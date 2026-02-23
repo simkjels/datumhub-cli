@@ -197,3 +197,54 @@ class TestConfigUnset:
         result = invoke(["--output", "json", "config", "unset", "registry"], cfg_path)
         data = json.loads(result.output)
         assert data["removed"] is True
+
+
+# ---------------------------------------------------------------------------
+# B1: Config V2 migration
+# ---------------------------------------------------------------------------
+
+
+class TestConfigMigration:
+    """B1.13–B1.15: load_config() migrates v1 flat keys to v2 nested auth."""
+
+    def test_v1_config_migrated_to_v2_on_load(self, tmp_path):
+        """B1.13: v1 flat token.{host} keys are converted to auth.{host}.token."""
+        from datum.commands.config import load_config
+
+        cfg_path = tmp_path / "config.json"
+        cfg_path.write_text(
+            json.dumps({"token.datumhub.org": "tok123", "username.datumhub.org": "alice"})
+        )
+        with patch("datum.commands.config.get_config_path", return_value=cfg_path):
+            cfg = load_config()
+
+        assert cfg["auth"]["datumhub.org"]["token"] == "tok123"
+        assert cfg["auth"]["datumhub.org"]["username"] == "alice"
+        assert "_version" in cfg
+        assert cfg["_version"] == 2
+
+    def test_v2_config_loaded_without_migration(self, tmp_path):
+        """B1.14: already-v2 config is returned unchanged."""
+        from datum.commands.config import load_config
+
+        cfg_path = tmp_path / "config.json"
+        v2 = {"_version": 2, "auth": {"datumhub.org": {"token": "tok456"}}}
+        cfg_path.write_text(json.dumps(v2))
+        with patch("datum.commands.config.get_config_path", return_value=cfg_path):
+            cfg = load_config()
+
+        assert cfg == v2
+
+    def test_migration_saves_updated_config_to_disk(self, tmp_path):
+        """B1.15: when migration fires, the new v2 format is persisted to disk."""
+        from datum.commands.config import load_config
+
+        cfg_path = tmp_path / "config.json"
+        cfg_path.write_text(json.dumps({"token.datumhub.org": "tok789"}))
+        with patch("datum.commands.config.get_config_path", return_value=cfg_path):
+            load_config()
+
+        saved = json.loads(cfg_path.read_text())
+        assert "token.datumhub.org" not in saved
+        assert saved["auth"]["datumhub.org"]["token"] == "tok789"
+        assert saved["_version"] == 2

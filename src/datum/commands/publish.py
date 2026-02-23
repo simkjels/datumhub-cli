@@ -81,9 +81,13 @@ def cmd_publish(
             )
         raise typer.Exit(code=1)
 
+    # Bump updated timestamp when force-overwriting
+    if force:
+        from datetime import date
+        pkg = pkg.model_copy(update={"updated": date.today().isoformat()})
+
     # 4. Publish to registry
     registry = get_registry()
-    is_remote = state.registry.startswith(("http://", "https://")) if state.registry else False
     try:
         result = registry.publish(pkg, overwrite=force)
     except PermissionError as exc:
@@ -110,7 +114,7 @@ def cmd_publish(
         raise typer.Exit(code=2)
 
     # 5. Success
-    if is_remote:
+    if state.is_remote:
         if output_fmt == OutputFormat.json:
             _emit_json(published=True, id=pkg.id, version=pkg.version)
         else:

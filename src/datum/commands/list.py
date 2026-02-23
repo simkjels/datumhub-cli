@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
+from typing import Optional
 
 import typer
 from rich import box
@@ -13,7 +15,12 @@ from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
 
 
-def cmd_list() -> None:
+def cmd_list(
+    pattern: Optional[str] = typer.Argument(
+        None,
+        help="Optional filter pattern, e.g. 'simkjels/*' or 'nor*'",
+    ),
+) -> None:
     """
     List datasets in the local registry.
 
@@ -37,16 +44,21 @@ def cmd_list() -> None:
             err_console.print(f"\n[error]✗[/error] {exc}\n")
         raise typer.Exit(code=2)
 
+    # Apply pattern filter client-side (glob-based, not keyword-based)
+    if pattern:
+        packages = [
+            p for p in packages
+            if fnmatch.fnmatch(p.id, pattern) or fnmatch.fnmatch(p.id, f"{pattern}/*")
+        ]
+
     if output_fmt == OutputFormat.json:
         print(json.dumps([p.to_dict() for p in packages], indent=2, ensure_ascii=False))
         return
 
-    is_remote = bool(state.registry and state.registry.startswith(("http://", "https://")))
-
     if not packages:
         if not quiet:
             console.print()
-            if is_remote:
+            if state.is_remote:
                 console.print("  [muted]No datasets found.[/muted]")
             else:
                 console.print("  [muted]No datasets in local registry.[/muted]")
@@ -56,7 +68,7 @@ def cmd_list() -> None:
 
     if not quiet:
         console.print()
-        location = state.registry if is_remote else "local registry"
+        location = state.registry if state.is_remote else "local registry"
         console.print(f"  [bold]{len(packages)}[/bold] dataset(s) in {location}\n")
 
         table = Table(box=box.SIMPLE, show_header=True, header_style="bold white")

@@ -50,29 +50,29 @@ def _mock_resp(status_code: int, body=None):
 class TestRemoteList:
     def test_list_returns_packages(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(200, LIST_RESPONSE)) as mock_get:
+        with patch("httpx.request", return_value=_mock_resp(200, LIST_RESPONSE)) as mock_req:
             pkgs = reg.list()
         assert len(pkgs) == 1
         assert pkgs[0].id == "simkjels/samples/sampledata"
-        mock_get.assert_called_once()
+        mock_req.assert_called_once()
 
     def test_list_passes_query_param(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(200, LIST_RESPONSE)) as mock_get:
+        with patch("httpx.request", return_value=_mock_resp(200, LIST_RESPONSE)) as mock_req:
             reg.list(q="sample")
-        call_kwargs = mock_get.call_args
+        call_kwargs = mock_req.call_args
         assert call_kwargs.kwargs["params"]["q"] == "sample"
 
     def test_list_network_error_raises_runtime(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", side_effect=httpx.HTTPError("timeout")):
+        with patch("httpx.request", side_effect=httpx.HTTPError("timeout")):
             with pytest.raises(RuntimeError, match="Registry unreachable"):
                 reg.list()
 
     def test_list_ignores_extra_api_fields(self):
         """DataPackage model should accept owner/published_at without error."""
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(200, LIST_RESPONSE)):
+        with patch("httpx.request", return_value=_mock_resp(200, LIST_RESPONSE)):
             pkgs = reg.list()
         assert pkgs[0].id == "simkjels/samples/sampledata"
 
@@ -85,20 +85,20 @@ class TestRemoteList:
 class TestRemoteGet:
     def test_get_returns_package(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(200, VALID_ITEM)):
+        with patch("httpx.request", return_value=_mock_resp(200, VALID_ITEM)):
             pkg = reg.get("simkjels/samples/sampledata", "0.1.0")
         assert pkg is not None
         assert pkg.version == "0.1.0"
 
     def test_get_returns_none_on_404(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(404)):
+        with patch("httpx.request", return_value=_mock_resp(404)):
             pkg = reg.get("simkjels/samples/sampledata", "9.9.9")
         assert pkg is None
 
     def test_get_network_error_raises_runtime(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", side_effect=httpx.HTTPError("conn refused")):
+        with patch("httpx.request", side_effect=httpx.HTTPError("conn refused")):
             with pytest.raises(RuntimeError):
                 reg.get("simkjels/samples/sampledata", "0.1.0")
 
@@ -111,14 +111,14 @@ class TestRemoteGet:
 class TestRemoteLatest:
     def test_latest_returns_package(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(200, VALID_ITEM)):
+        with patch("httpx.request", return_value=_mock_resp(200, VALID_ITEM)):
             pkg = reg.latest("simkjels/samples/sampledata")
         assert pkg is not None
         assert pkg.id == "simkjels/samples/sampledata"
 
     def test_latest_returns_none_on_404(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", return_value=_mock_resp(404)):
+        with patch("httpx.request", return_value=_mock_resp(404)):
             pkg = reg.latest("simkjels/samples/unknown")
         assert pkg is None
 
@@ -145,46 +145,45 @@ class TestRemotePublish:
     def test_publish_success(self):
         reg = RemoteRegistry(BASE_URL)
         pkg = self._make_pkg()
-        with patch("httpx.post", return_value=_mock_resp(201, VALID_ITEM)):
+        with patch("httpx.request", return_value=_mock_resp(201, VALID_ITEM)):
             reg.publish(pkg)  # no exception
 
     def test_publish_with_force_appends_query(self):
         reg = RemoteRegistry(BASE_URL)
         pkg = self._make_pkg()
-        with patch("httpx.post", return_value=_mock_resp(201, VALID_ITEM)) as mock_post:
+        with patch("httpx.request", return_value=_mock_resp(201, VALID_ITEM)) as mock_req:
             reg.publish(pkg, overwrite=True)
-        url_arg = mock_post.call_args.args[0]
+        url_arg = mock_req.call_args.args[1]
         assert "force=true" in url_arg
 
     def test_publish_raises_permission_error_on_401(self):
         reg = RemoteRegistry(BASE_URL)
         pkg = self._make_pkg()
-        with patch("httpx.post", return_value=_mock_resp(401)):
+        with patch("httpx.request", return_value=_mock_resp(401)):
             with pytest.raises(PermissionError, match="Not authenticated"):
                 reg.publish(pkg)
 
     def test_publish_raises_file_exists_error_on_409(self):
         reg = RemoteRegistry(BASE_URL)
         pkg = self._make_pkg()
-        with patch("httpx.post", return_value=_mock_resp(409)):
+        with patch("httpx.request", return_value=_mock_resp(409)):
             with pytest.raises(FileExistsError):
                 reg.publish(pkg)
 
     def test_publish_sends_auth_header_when_token_stored(self, tmp_path):
         reg = RemoteRegistry(BASE_URL)
         pkg = self._make_pkg()
-        cfg = {"token.datumhub.fly.dev": "mytoken123"}
         with (
-            patch("httpx.post", return_value=_mock_resp(201, VALID_ITEM)) as mock_post,
+            patch("httpx.request", return_value=_mock_resp(201, VALID_ITEM)) as mock_req,
             patch("datum.registry.remote.RemoteRegistry._auth_headers", return_value={"Authorization": "Bearer mytoken123"}),
         ):
             reg.publish(pkg)
-        mock_post.assert_called_once()
+        mock_req.assert_called_once()
 
     def test_publish_network_error_raises_runtime(self):
         reg = RemoteRegistry(BASE_URL)
         pkg = self._make_pkg()
-        with patch("httpx.post", side_effect=httpx.HTTPError("timeout")):
+        with patch("httpx.request", side_effect=httpx.HTTPError("timeout")):
             with pytest.raises(RuntimeError):
                 reg.publish(pkg)
 
@@ -197,25 +196,25 @@ class TestRemotePublish:
 class TestRemoteUnpublish:
     def test_unpublish_success(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.delete", return_value=_mock_resp(204)):
+        with patch("httpx.request", return_value=_mock_resp(204)):
             result = reg.unpublish("simkjels/samples/sampledata", "0.1.0")
         assert result is True
 
     def test_unpublish_returns_false_on_404(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.delete", return_value=_mock_resp(404)):
+        with patch("httpx.request", return_value=_mock_resp(404)):
             result = reg.unpublish("simkjels/samples/sampledata", "9.9.9")
         assert result is False
 
     def test_unpublish_raises_permission_error_on_403(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.delete", return_value=_mock_resp(403)):
+        with patch("httpx.request", return_value=_mock_resp(403)):
             with pytest.raises(PermissionError):
                 reg.unpublish("simkjels/samples/sampledata", "0.1.0")
 
     def test_unpublish_network_error_raises_runtime(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.delete", side_effect=httpx.HTTPError("timeout")):
+        with patch("httpx.request", side_effect=httpx.HTTPError("timeout")):
             with pytest.raises(RuntimeError):
                 reg.unpublish("simkjels/samples/sampledata", "0.1.0")
 
@@ -233,12 +232,115 @@ class TestRemoteVersions:
             {**VALID_ITEM, "version": "0.1.0"},
         ]
         body = {"items": items, "total": 2, "limit": 500, "offset": 0}
-        with patch("httpx.get", return_value=_mock_resp(200, body)):
+        with patch("httpx.request", return_value=_mock_resp(200, body)):
             versions = reg.versions("simkjels/samples/sampledata")
         assert versions == ["0.1.0", "0.2.0"]
 
     def test_versions_returns_empty_on_network_error(self):
         reg = RemoteRegistry(BASE_URL)
-        with patch("httpx.get", side_effect=httpx.HTTPError("timeout")):
+        with patch("httpx.request", side_effect=httpx.HTTPError("timeout")):
             versions = reg.versions("simkjels/samples/sampledata")
         assert versions == []
+
+
+# ---------------------------------------------------------------------------
+# B2: Remote suggest endpoint
+# ---------------------------------------------------------------------------
+
+
+SUGGEST_RESPONSE = {"query": "simkjels/samples/sampledata", "suggestions": ["simkjels/samples/sampledata"]}
+
+
+class TestRemoteSuggest:
+    def test_suggest_calls_suggest_endpoint(self):
+        """B2.3: suggest() uses /api/v1/packages/suggest, not the full list."""
+        reg = RemoteRegistry(BASE_URL)
+        with patch("httpx.request", return_value=_mock_resp(200, SUGGEST_RESPONSE)) as mock_req:
+            result = reg.suggest("simkjels/samples/sampledata", n=5)
+        url_arg = mock_req.call_args.args[1]
+        assert "/api/v1/packages/suggest" in url_arg
+        assert result == ["simkjels/samples/sampledata"]
+
+    def test_suggest_passes_q_and_n_params(self):
+        reg = RemoteRegistry(BASE_URL)
+        with patch("httpx.request", return_value=_mock_resp(200, SUGGEST_RESPONSE)) as mock_req:
+            reg.suggest("simkjels/samples/sampledata", n=3)
+        params = mock_req.call_args.kwargs["params"]
+        assert params["q"] == "simkjels/samples/sampledata"
+        assert params["n"] == 3
+
+    def test_suggest_fallback_on_404(self):
+        """B2.4: if suggest endpoint returns 404 (old server), fallback is used without raising."""
+        reg = RemoteRegistry(BASE_URL)
+        responses = [
+            _mock_resp(404),           # suggest endpoint: not found
+            _mock_resp(200, {**LIST_RESPONSE, "has_next": False}),  # fallback list call
+        ]
+        with patch("httpx.request", side_effect=responses):
+            result = reg.suggest("simkjels/samples/sampledata", n=5)
+        # fallback difflib will find the match
+        assert "simkjels/samples/sampledata" in result
+
+    def test_suggest_returns_empty_on_network_error(self):
+        """Network failure during suggest silently returns empty list."""
+        reg = RemoteRegistry(BASE_URL)
+        with patch("httpx.request", side_effect=httpx.HTTPError("timeout")):
+            result = reg.suggest("simkjels/samples/sampledata")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# B3: Token auto-refresh on 401
+# ---------------------------------------------------------------------------
+
+
+class TestTokenRefresh:
+    def _make_pkg(self):
+        from datum.models import DataPackage
+
+        return DataPackage.model_validate(
+            {
+                "id": "simkjels/samples/sampledata",
+                "version": "0.1.0",
+                "title": "Sample",
+                "publisher": {"name": "Simen"},
+                "sources": [{"url": "https://example.com/data.csv", "format": "csv"}],
+            }
+        )
+
+    def test_401_triggers_refresh_and_retry(self):
+        """B3.5: a 401 response triggers _do_refresh then retries; second request succeeds."""
+        reg = RemoteRegistry(BASE_URL)
+        with (
+            patch.object(reg, "_can_refresh", return_value=True),
+            patch.object(reg, "_do_refresh"),
+            patch.object(reg, "_auth_headers", return_value={"Authorization": "Bearer refreshed"}),
+            patch("httpx.request", side_effect=[_mock_resp(401), _mock_resp(200, VALID_ITEM)]),
+        ):
+            pkg = reg.get("simkjels/samples/sampledata", "0.1.0")
+        assert pkg is not None
+        assert pkg.id == "simkjels/samples/sampledata"
+
+    def test_refresh_failure_propagates_permission_error(self):
+        """B3.6: if retry also returns 401, PermissionError surfaces (no infinite loop)."""
+        reg = RemoteRegistry(BASE_URL)
+        pkg = self._make_pkg()
+        with (
+            patch.object(reg, "_can_refresh", return_value=True),
+            patch.object(reg, "_do_refresh"),
+            patch.object(reg, "_auth_headers", return_value={"Authorization": "Bearer stale"}),
+            patch("httpx.request", return_value=_mock_resp(401)),
+        ):
+            with pytest.raises(PermissionError, match="Not authenticated"):
+                reg.publish(pkg)
+
+    def test_no_refresh_when_cannot_refresh(self):
+        """If _can_refresh() is False, no refresh is attempted and 401 propagates normally."""
+        reg = RemoteRegistry(BASE_URL)
+        pkg = self._make_pkg()
+        with (
+            patch.object(reg, "_can_refresh", return_value=False),
+            patch("httpx.request", return_value=_mock_resp(401)),
+        ):
+            with pytest.raises(PermissionError):
+                reg.publish(pkg)

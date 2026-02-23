@@ -15,8 +15,10 @@ import httpx
 import typer
 from rich.progress import BarColumn, DownloadColumn, Progress, TextColumn, TimeRemainingColumn
 
+from pydantic import ValidationError
+
 from datum.console import console, err_console
-from datum.models import COMMON_FORMATS
+from datum.models import COMMON_FORMATS, ID_PATTERN, DataPackage
 from datum.state import OutputFormat, state
 
 _DATA_EXTENSIONS: set = COMMON_FORMATS
@@ -25,6 +27,30 @@ _DATA_EXTENSIONS: set = COMMON_FORMATS
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _validate_pkg_data(pkg_data: dict, output_fmt, quiet: bool) -> bool:
+    """Validate pkg_data against the DataPackage schema.
+
+    Prints errors and returns False if invalid; returns True if valid.
+    Does not raise or exit — caller decides what to do.
+    """
+    try:
+        DataPackage.model_validate(pkg_data)
+        return True
+    except ValidationError as exc:
+        errors = [
+            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}"
+            for e in exc.errors()
+        ]
+        if output_fmt == OutputFormat.json:
+            print(json.dumps({"added": 0, "error": "; ".join(errors)}))
+        else:
+            err_console.print("\n[error]✗[/error] Package would be invalid after these changes:\n")
+            for e in errors:
+                err_console.print(f"  [error]•[/error] {e}")
+            err_console.print()
+        return False
 
 
 def _find_datapackage(start: Optional[Path] = None) -> Optional[Path]:
@@ -108,7 +134,10 @@ def cmd_add(
         None, "--format", help="Override detected file format (e.g. csv, parquet)"
     ),
     no_checksum: bool = typer.Option(
-        False, "--no-checksum", help="Skip checksum computation — faster, but less safe"
+        False,
+        "--no-verify",
+        "--no-checksum",  # deprecated alias, kept for backward compatibility
+        help="Skip integrity verification (faster, but the file will not be checked)",
     ),
     crawl: bool = typer.Option(
         False, "--crawl", help="Treat the URL as a directory index and discover all data files"
@@ -120,8 +149,8 @@ def cmd_add(
     """
     Add one or more source URLs to a datapackage.json.
 
-    Each file is streamed to automatically compute its SHA-256 checksum
-    and byte size — no manual work required.
+    Each file is streamed to automatically verify its integrity
+    and record the byte size — no manual work required.
 
     When no datapackage.json exists yet, pass [bold]--id[/bold], [bold]--title[/bold],
     [bold]--publisher[/bold], and [bold]--version[/bold] to create one on the fly:
@@ -140,7 +169,7 @@ def cmd_add(
 
       datum add https://example.com/data.csv
       datum add https://a.com/a.csv https://b.com/b.csv
-      datum add --no-checksum https://example.com/large.parquet
+      datum add --no-verify https://example.com/large.parquet
       datum add --crawl https://example.com/datasets/
       datum add --crawl --filter '*.csv' https://s3.amazonaws.com/my-bucket/
     """
@@ -160,6 +189,18 @@ def cmd_add(
     }
     if publisher is not None:
         metadata_flags["publisher"] = {"name": publisher}
+
+    # Validate --id format early, before any network I/O
+    if id_ is not None and not ID_PATTERN.match(id_):
+        if output_fmt == OutputFormat.json:
+            print(json.dumps({"added": 0, "error": f"Invalid --id: {id_!r}"}))
+        else:
+            err_console.print(
+                f"\n[error]✗[/error] Invalid --id: [bold]{id_}[/bold]\n\n"
+                "  Expected [bold]publisher/namespace/dataset[/bold] "
+                "(e.g. simkjels/samples/demo)\n"
+            )
+        raise typer.Exit(code=1)
 
     # ------------------------------------------------------------------
     # Locate or create datapackage.json
@@ -249,6 +290,8 @@ def cmd_add(
 
     if not new_urls:
         # Still write any metadata updates even if no new sources
+        if not _validate_pkg_data(pkg_data, output_fmt, quiet):
+            raise typer.Exit(code=1)
         pkg_path.write_text(json.dumps(pkg_data, indent=2, ensure_ascii=False) + "\n")
         if output_fmt == OutputFormat.json:
             print(json.dumps({"added": 0, "skipped": skipped, "message": "All URLs already present."}))
@@ -284,7 +327,7 @@ def cmd_add(
                     pass
                 added_sources.append(source)
                 if show_progress:
-                    console.print(f"  [success]✓[/success] {filename}  [muted](no checksum)[/muted]")
+                    console.print(f"  [success]✓[/success] {filename}  [muted](integrity check skipped)[/muted]")
                 continue
 
             task = progress.add_task(filename, total=None)
@@ -322,6 +365,8 @@ def cmd_add(
     # Write updated datapackage.json
     # ------------------------------------------------------------------
     pkg_data["sources"] = existing_sources + added_sources
+    if not _validate_pkg_data(pkg_data, output_fmt, quiet):
+        raise typer.Exit(code=1)
     pkg_path.write_text(json.dumps(pkg_data, indent=2, ensure_ascii=False) + "\n")
 
     if output_fmt == OutputFormat.json:

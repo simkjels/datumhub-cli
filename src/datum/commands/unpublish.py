@@ -11,11 +11,12 @@ from datum.console import console, err_console
 from datum.models import ID_PATTERN
 from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
+from datum.utils import parse_identifier
 
 
 def cmd_unpublish(
     identifier: str = typer.Argument(
-        ..., help="Dataset identifier (publisher.namespace.dataset:version)"
+        ..., help="Dataset identifier (publisher/namespace/dataset:version)"
     ),
     yes: bool = typer.Option(
         False, "--yes", "-y", help="Skip confirmation prompt"
@@ -27,7 +28,7 @@ def cmd_unpublish(
     """
     Remove a dataset version from the local registry.
 
-    IDENTIFIER format: [bold]publisher.namespace.dataset:version[/bold]
+    IDENTIFIER format: [bold]publisher/namespace/dataset:version[/bold]
 
     Use [bold]--all[/bold] to remove every version of a dataset at once.
 
@@ -37,11 +38,7 @@ def cmd_unpublish(
     quiet = state.quiet
 
     # Parse identifier
-    if ":" in identifier:
-        id_part, version = identifier.split(":", 1)
-    else:
-        id_part = identifier
-        version = None
+    id_part, version = parse_identifier(identifier)
 
     if not ID_PATTERN.match(id_part):
         if output_fmt == OutputFormat.json:
@@ -54,7 +51,7 @@ def cmd_unpublish(
 
     if version is None and not all_versions:
         err_console.print(
-            "\n[error]✗[/error] Specify a version ([bold]publisher.namespace.dataset:version[/bold]) "
+            "\n[error]✗[/error] Specify a version ([bold]publisher/namespace/dataset:version[/bold]) "
             "or use [bold]--all[/bold] to remove all versions.\n"
         )
         raise typer.Exit(code=1)

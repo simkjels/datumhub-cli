@@ -46,7 +46,7 @@ class TestLoginWithToken:
         cfg_path = tmp_path / "config.json"
         invoke(["login", "--token", TOKEN, REGISTRY], cfg_path)
         data = json.loads(cfg_path.read_text())
-        assert data[f"token.{HOST}"] == TOKEN
+        assert data["auth"][HOST]["token"] == TOKEN
 
     def test_shows_success_message(self, tmp_path):
         result = invoke(["login", "--token", TOKEN, REGISTRY], tmp_path / "config.json")
@@ -98,7 +98,7 @@ class TestLoginWithCredentials:
             # Use the --token path to verify storage independently
             invoke(["login", "--token", TOKEN, REGISTRY], cfg_path)
         data = json.loads(cfg_path.read_text())
-        assert data[f"token.{HOST}"] == TOKEN
+        assert data["auth"][HOST]["token"] == TOKEN
 
     def test_auth_failure_exits_1(self, tmp_path):
         mock = MagicMock()
@@ -161,7 +161,7 @@ class TestLogout:
         invoke(["login", "--token", TOKEN, REGISTRY], cfg_path)
         invoke(["logout", REGISTRY], cfg_path)
         data = json.loads(cfg_path.read_text())
-        assert f"token.{HOST}" not in data
+        assert HOST not in data.get("auth", {})
 
     def test_logout_exits_0_when_not_logged_in(self, tmp_path):
         result = invoke(["logout", REGISTRY], tmp_path / "config.json")
@@ -174,3 +174,40 @@ class TestLogout:
         data = json.loads(result.output)
         assert data["logged_out"] is True
         assert data["registry"] == REGISTRY
+
+    def test_logout_not_logged_in_json_shows_false(self, tmp_path):
+        result = invoke(["--output", "json", "logout", REGISTRY], tmp_path / "config.json")
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["logged_out"] is False
+
+    def test_logout_not_logged_in_shows_nothing_to_do(self, tmp_path):
+        result = invoke(["logout", REGISTRY], tmp_path / "config.json")
+        assert result.exit_code == 0
+        assert "nothing to do" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# B1: V2 schema integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestConfigV2Integration:
+    """B1.16–B1.17: verify that login and logout use the v2 auth structure."""
+
+    def test_login_stores_token_under_auth_key(self, tmp_path):
+        """B1.16: after login, config has auth.{host}.token and auth.{host}.username."""
+        cfg_path = tmp_path / "config.json"
+        with patch("httpx.post", return_value=make_mock_response(TOKEN)):
+            invoke(["login", REGISTRY], cfg_path, input="myuser\nmypassword\n")
+        data = json.loads(cfg_path.read_text())
+        assert data["auth"][HOST]["token"] == TOKEN
+        assert data["auth"][HOST]["username"] == "myuser"
+
+    def test_logout_clears_auth_host_entry(self, tmp_path):
+        """B1.17: logout removes the host entry from auth entirely."""
+        cfg_path = tmp_path / "config.json"
+        invoke(["login", "--token", TOKEN, REGISTRY], cfg_path)
+        invoke(["logout", REGISTRY], cfg_path)
+        data = json.loads(cfg_path.read_text())
+        assert HOST not in data.get("auth", {})

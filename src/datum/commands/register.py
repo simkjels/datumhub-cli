@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import urlparse
 
 import httpx
 import typer
 
-from datum.commands.config import load_config, save_config
-from datum.commands.login import get_token_key
+from datum.commands.config import load_config, save_config, set_auth
 from datum.console import console, err_console
 from datum.state import OutputFormat, state
 
@@ -98,10 +98,9 @@ def cmd_register(
         )
         token_resp.raise_for_status()
         token = token_resp.json()["token"]
-        from urllib.parse import urlparse
         host = urlparse(url).netloc or url
         cfg = load_config()
-        cfg[get_token_key(host)] = token
+        set_auth(cfg, host, token, username)
         save_config(cfg)
         logged_in = True
     except Exception:

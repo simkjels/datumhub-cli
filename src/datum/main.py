@@ -6,7 +6,7 @@ from typing import Optional
 
 import typer
 
-from datum.__init__ import __version__
+from datum import __version__
 from datum.commands.add import cmd_add
 from datum.commands.cache import cache_app
 from datum.commands.check import cmd_check
@@ -21,6 +21,7 @@ from datum.commands.pull import cmd_pull
 from datum.commands.search import cmd_search
 from datum.commands.unpublish import cmd_unpublish
 from datum.commands.update import cmd_update
+from datum.commands.whoami import cmd_whoami
 from datum.state import OutputFormat, state
 
 # ---------------------------------------------------------------------------
@@ -95,10 +96,10 @@ def _root(
 # ---------------------------------------------------------------------------
 
 app.command("init", help="Create a datapackage.json via an interactive wizard.")(cmd_init)
-app.command("add", help="Add source URL(s) to a datapackage.json (auto-computes checksum + size).")(cmd_add)
+app.command("add", help="Add source URL(s) to a datapackage.json (auto-verifies integrity + records size).")(cmd_add)
 app.command("check", help="Validate a datapackage.json against the Datum schema.")(cmd_check)
 app.command("publish", help="Publish dataset metadata to the registry.")(cmd_publish)
-app.command("pull", help="Download a dataset by identifier and verify its checksum.")(cmd_pull)
+app.command("pull", help="Download a dataset by identifier and verify file integrity.")(cmd_pull)
 app.command("info", help="Show dataset metadata without downloading data files.")(cmd_info)
 app.command("search", help="Search the registry by keyword.")(cmd_search)
 app.command("register", help="Create an account on a Datum registry.")(cmd_register)
@@ -106,6 +107,7 @@ app.command("login", help="Authenticate with a Datum registry.")(cmd_login)
 app.command("logout", help="Remove stored credentials for a registry.")(cmd_logout)
 app.command("unpublish", help="Remove a dataset version from the local registry.")(cmd_unpublish)
 app.command("update", help="Pull the latest version of one or all cached datasets.")(cmd_update)
+app.command("whoami", help="Show active registry and login status.")(cmd_whoami)
 
 # list / ls alias
 app.command("list", help="List datasets in the registry.")(cmd_list)

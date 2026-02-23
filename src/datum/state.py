@@ -18,6 +18,10 @@ class AppState:
         self.quiet: bool = False
         self.verbose: bool = False
 
+    @property
+    def is_remote(self) -> bool:
+        return bool(self.registry and self.registry.startswith(("http://", "https://")))
+
 
 # Singleton accessed by every command module.
 state = AppState()

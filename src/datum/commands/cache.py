@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Optional
 
 import typer
 from rich import box
@@ -12,6 +12,7 @@ from rich.table import Table
 
 from datum.console import console, err_console
 from datum.state import OutputFormat, state
+from datum.utils import fmt_size
 
 cache_app = typer.Typer(help="Manage the local dataset cache.")
 
@@ -58,14 +59,6 @@ def _scan_cache(root: Path) -> List[CacheEntry]:
     return entries
 
 
-def _fmt_size(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
-
-
 # ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
@@ -109,7 +102,7 @@ def cache_list() -> None:
     console.print()
     console.print(
         f"  [bold]{len(entries)}[/bold] cached version(s)  "
-        f"[muted]·[/muted]  {_fmt_size(total_size)}  "
+        f"[muted]·[/muted]  {fmt_size(total_size)}  "
         f"[muted]·[/muted]  {get_cache_root()}\n"
     )
 
@@ -124,7 +117,7 @@ def cache_list() -> None:
             entry.dataset_id,
             entry.version,
             str(len(entry.files)),
-            _fmt_size(entry.size),
+            fmt_size(entry.size),
         )
 
     console.print(table)
@@ -151,16 +144,95 @@ def cache_size() -> None:
 
     console.print()
     console.print(f"  [bold]Cache:[/bold]  {get_cache_root()}")
-    console.print(f"  [bold]Total:[/bold]  {_fmt_size(total_size)}  [muted]({total_files} file(s))[/muted]")
+    console.print(f"  [bold]Total:[/bold]  {fmt_size(total_size)}  [muted]({total_files} file(s))[/muted]")
     console.print()
+
+
+@cache_app.command("path")
+def cache_path(
+    identifier: str = typer.Argument(
+        ..., help="Dataset identifier (publisher/namespace/dataset[:version])"
+    ),
+) -> None:
+    """Print the cache directory path for a dataset (useful in shell scripts)."""
+    from datum.models import ID_PATTERN
+
+    id_part = identifier.split(":")[0]
+    if not ID_PATTERN.match(id_part):
+        err_console.print(f"\n[error]✗[/error] Invalid identifier: {id_part}\n")
+        raise typer.Exit(code=1)
+    pub, ns, ds = id_part.split("/")
+    print(get_cache_root() / pub / ns / ds)
 
 
 @cache_app.command("clear")
 def cache_clear(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    dataset: Optional[str] = typer.Option(
+        None,
+        "--dataset",
+        help="Clear only this dataset (publisher/namespace/dataset[:version])",
+    ),
 ) -> None:
-    """Remove all cached datasets."""
+    """Remove all cached datasets (or a specific one with --dataset)."""
     root = get_cache_root()
+
+    if dataset:
+        from datum.models import ID_PATTERN
+
+        id_part = dataset.split(":")[0]
+        version_filter = dataset.split(":")[1] if ":" in dataset else None
+        if not ID_PATTERN.match(id_part):
+            err_console.print(f"\n[error]✗[/error] Invalid identifier: {id_part}\n")
+            raise typer.Exit(code=1)
+        pub, ns, ds = id_part.split("/")
+        dataset_cache = root / pub / ns / ds
+        if version_filter:
+            targets = [dataset_cache / version_filter]
+        else:
+            targets = (
+                [p for p in dataset_cache.iterdir() if p.is_dir()]
+                if dataset_cache.exists()
+                else []
+            )
+        if not targets or not any(t.exists() for t in targets):
+            console.print(f"\n  [muted]No cached data for {id_part}.[/muted]\n")
+            return
+
+        total_size = sum(
+            f.stat().st_size
+            for t in targets
+            for f in t.rglob("*")
+            if f.is_file()
+        )
+        label = dataset
+
+        if not yes:
+            confirmed = typer.confirm(
+                f"  Clear {fmt_size(total_size)} for {label} from cache?",
+                default=False,
+            )
+            if not confirmed:
+                console.print("  [muted]Aborted.[/muted]")
+                return
+
+        for t in targets:
+            shutil.rmtree(t, ignore_errors=True)
+
+        # Remove empty parent dirs (version_dir → dataset → ns → pub)
+        for parent in [dataset_cache, dataset_cache.parent, dataset_cache.parent.parent]:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+
+        console.print()
+        console.print(
+            f"  [success]✓[/success] Cleared {label}  [muted]({fmt_size(total_size)} freed)[/muted]"
+        )
+        console.print()
+        return
+
     entries = _scan_cache(root)
 
     if not entries:
@@ -174,7 +246,7 @@ def cache_clear(
 
     if not yes:
         confirmed = typer.confirm(
-            f"  Clear {_fmt_size(total_size)} ({total_files} file(s)) from cache?",
+            f"  Clear {fmt_size(total_size)} ({total_files} file(s)) from cache?",
             default=False,
         )
         if not confirmed:
@@ -184,5 +256,5 @@ def cache_clear(
     shutil.rmtree(root, ignore_errors=True)
 
     console.print()
-    console.print(f"  [success]✓[/success] Cache cleared  [muted]({_fmt_size(total_size)} freed)[/muted]")
+    console.print(f"  [success]✓[/success] Cache cleared  [muted]({fmt_size(total_size)} freed)[/muted]")
     console.print()

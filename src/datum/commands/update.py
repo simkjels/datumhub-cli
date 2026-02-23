@@ -11,8 +11,9 @@ import typer
 from datum.commands.cache import get_cache_root
 from datum.console import console, err_console
 from datum.models import ID_PATTERN
-from datum.registry.local import get_local_registry
+from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
+from datum.utils import parse_identifier, sort_versions
 
 
 def _cached_dataset_ids(cache_root: Path) -> List[str]:
@@ -29,12 +30,13 @@ def _cached_dataset_ids(cache_root: Path) -> List[str]:
 
 
 def _cached_versions(cache_root: Path, id_part: str) -> List[str]:
-    """Return all cached versions for a dataset id."""
+    """Return all cached versions for a dataset id, sorted ascending (newest last)."""
     pub, ns, ds = id_part.split("/")
     folder = cache_root / pub / ns / ds
     if not folder.exists():
         return []
-    return [d.name for d in sorted(folder.iterdir()) if d.is_dir()]
+    raw = [d.name for d in folder.iterdir() if d.is_dir()]
+    return sort_versions(raw)
 
 
 def cmd_update(
@@ -61,14 +63,11 @@ def cmd_update(
     quiet = state.quiet
 
     cache_root = get_cache_root()
-    registry = get_local_registry()
+    registry = get_registry()
 
     # Determine which dataset IDs to check
     if identifier is not None:
-        if ":" in identifier:
-            id_part = identifier.split(":", 1)[0]
-        else:
-            id_part = identifier
+        id_part, _ = parse_identifier(identifier)
 
         if not ID_PATTERN.match(id_part):
             if output_fmt == OutputFormat.json:
@@ -147,7 +146,7 @@ def cmd_update(
         return
 
     # Pull updates — import here to avoid circular imports
-    from datum.commands.pull import cmd_pull  # noqa: PLC0415
+    from datum.commands.pull import _pull_one  # noqa: PLC0415
 
     updated = []
     for ds_id, cur, new in to_update:
@@ -158,11 +157,9 @@ def cmd_update(
                 console.print(f"  Updating [bold]{ds_id}[/bold]: {cur} → {new}")
             else:
                 console.print(f"  Pulling [bold]{ds_id}:{new}[/bold]")
-        try:
-            cmd_pull(pull_id, force=force)
+        ok = _pull_one(pull_id, force=force)
+        if ok == 0:
             updated.append({"id": ds_id, "from": cur, "to": new})
-        except SystemExit:
-            pass  # cmd_pull raises Exit on error; continue with remaining
 
     if output_fmt == OutputFormat.json:
         print(json.dumps({"updated": updated}))

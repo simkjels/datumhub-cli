@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from datum.models import DataPackage
 from datum.state import state
+from datum.utils import sort_versions
 
 
 class LocalRegistry:
@@ -28,7 +29,7 @@ class LocalRegistry:
             )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            json.dumps(pkg.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(pkg.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         return path
 
@@ -94,17 +95,19 @@ class LocalRegistry:
         return [p.stem for p in sorted(folder.glob("*.json"))]
 
     def latest(self, id: str) -> Optional[DataPackage]:
-        """Return the most recently published version for a dataset id."""
+        """Return the semantically newest published version for a dataset id."""
         pub, ns, ds = id.split("/")
         folder = self.root / pub / ns / ds
         if not folder.exists():
             return None
-        candidates = sorted(
-            folder.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
-        )
-        for p in candidates:
+        all_stems = [p.stem for p in folder.glob("*.json")]
+        if not all_stems:
+            return None
+        # Sort ascending; newest is last
+        for version in reversed(sort_versions(all_stems)):
+            path = folder / f"{version}.json"
             try:
-                return DataPackage.model_validate(json.loads(p.read_text(encoding="utf-8")))
+                return DataPackage.model_validate(json.loads(path.read_text(encoding="utf-8")))
             except Exception:
                 continue
         return None

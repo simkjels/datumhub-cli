@@ -156,3 +156,53 @@ class TestCacheClear:
         )
         # Files should still be there (patching not used here — real cache not touched)
         assert (entry / "data.csv").exists()
+
+    def test_clear_with_dataset_removes_only_that_dataset(self, tmp_path):
+        cache = tmp_path / "cache"
+        make_cache_entry(cache, "met", "no", "oslo-hourly", "1.0.0", {"data.csv": CONTENT})
+        entry2 = make_cache_entry(cache, "simkjels", "samples", "sampledata", "0.1.0", {"s.csv": CONTENT})
+        result = invoke(["cache", "clear", "--yes", "--dataset", "met/no/oslo-hourly"], cache)
+        assert result.exit_code == 0
+        assert not (cache / "met" / "no" / "oslo-hourly").exists()
+        assert (entry2 / "s.csv").exists()
+
+    def test_clear_with_versioned_dataset(self, tmp_path):
+        cache = tmp_path / "cache"
+        v1 = make_cache_entry(cache, "met", "no", "oslo-hourly", "1.0.0", {"data.csv": CONTENT})
+        v2 = make_cache_entry(cache, "met", "no", "oslo-hourly", "2.0.0", {"data.csv": CONTENT})
+        result = invoke(["cache", "clear", "--yes", "--dataset", "met/no/oslo-hourly:1.0.0"], cache)
+        assert result.exit_code == 0
+        assert not v1.exists()
+        assert v2.exists()
+
+    def test_clear_dataset_invalid_identifier_exits_1(self, tmp_path):
+        result = invoke(["cache", "clear", "--dataset", "bad/id"], tmp_path / "cache")
+        assert result.exit_code == 1
+
+    def test_clear_dataset_not_cached_shows_message(self, tmp_path):
+        result = invoke(["cache", "clear", "--yes", "--dataset", "met/no/oslo-hourly"], tmp_path / "cache")
+        assert result.exit_code == 0
+        assert "No cached" in result.output
+
+
+# ---------------------------------------------------------------------------
+# cache path
+# ---------------------------------------------------------------------------
+
+
+class TestCachePath:
+    def test_prints_path_for_valid_identifier(self, tmp_path):
+        result = invoke(["cache", "path", "met/no/oslo-hourly"], tmp_path / "cache")
+        assert result.exit_code == 0
+        assert "met" in result.output
+        assert "oslo-hourly" in result.output
+
+    def test_exits_1_for_invalid_identifier(self, tmp_path):
+        result = invoke(["cache", "path", "bad/id"], tmp_path / "cache")
+        assert result.exit_code == 1
+
+    def test_strips_version_from_identifier(self, tmp_path):
+        result = invoke(["cache", "path", "met/no/oslo-hourly:1.0.0"], tmp_path / "cache")
+        assert result.exit_code == 0
+        # Should not include version in the path output (path is per-dataset, not version)
+        assert "no/oslo-hourly" in result.output

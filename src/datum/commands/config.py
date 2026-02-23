@@ -31,15 +31,82 @@ def load_config() -> dict:
     if not p.exists():
         return {}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+        cfg = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        # Import here to avoid circular import at module load time
+        from datum.console import err_console
+        err_console.print(
+            f"\n[warning]⚠[/warning]  Config file is corrupted and cannot be parsed.\n"
+            f"  Path:  [bold]{p}[/bold]\n"
+            f"  Error: {exc}\n\n"
+            f"  Fix or delete the file and try again.\n"
+        )
+        raise SystemExit(2)
+    except OSError as exc:
+        from datum.console import err_console
+        err_console.print(f"\n[error]✗[/error]  Could not read config file: {exc}\n")
+        raise SystemExit(2)
+    if _migrate_config(cfg):
+        save_config(cfg)
+    return cfg
 
 
 def save_config(cfg: dict) -> None:
     p = get_config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _migrate_config(cfg: dict) -> bool:
+    """Convert v1 flat token.{host}/username.{host} keys to v2 nested auth. Returns True if changed."""
+    if cfg.get("_version", 1) >= 2:
+        return False
+
+    auth: dict = {}
+    to_remove = []
+    for key in list(cfg):
+        if key.startswith("token."):
+            host = key[len("token."):]
+            auth.setdefault(host, {})["token"] = cfg[key]
+            to_remove.append(key)
+        elif key.startswith("username."):
+            host = key[len("username."):]
+            auth.setdefault(host, {})["username"] = cfg[key]
+            to_remove.append(key)
+
+    for key in to_remove:
+        del cfg[key]
+
+    if auth:
+        existing = cfg.get("auth", {})
+        for host, data in auth.items():
+            existing.setdefault(host, {}).update(data)
+        cfg["auth"] = existing
+
+    cfg["_version"] = 2
+    return True
+
+
+def get_token(cfg: dict, host: str) -> Optional[str]:
+    """Return the stored token for *host*, or None."""
+    return cfg.get("auth", {}).get(host, {}).get("token")
+
+
+def get_username(cfg: dict, host: str) -> Optional[str]:
+    """Return the stored username for *host*, or None."""
+    return cfg.get("auth", {}).get(host, {}).get("username")
+
+
+def set_auth(cfg: dict, host: str, token: str, username: Optional[str] = None) -> None:
+    """Store *token* (and optionally *username*) for *host*."""
+    cfg.setdefault("auth", {}).setdefault(host, {})["token"] = token
+    if username is not None:
+        cfg["auth"][host]["username"] = username
+
+
+def clear_auth(cfg: dict, host: str) -> None:
+    """Remove all stored auth for *host*."""
+    cfg.get("auth", {}).pop(host, None)
 
 
 # Keep private aliases for backwards compat within this module

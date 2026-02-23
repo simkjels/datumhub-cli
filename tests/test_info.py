@@ -171,3 +171,30 @@ class TestInfoJson:
         assert data["description"] == "A sample CSV dataset."
         assert data["license"] == "CC-BY-4.0"
         assert "sample" in data["tags"]
+
+    def test_json_includes_all_versions(self, tmp_path):
+        reg_path = tmp_path / "registry"
+        publish_pkg(reg_path, VALID_PKG)
+        publish_pkg(reg_path, {**VALID_PKG, "version": "0.2.0"})
+        result = invoke(["--output", "json", "info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
+        data = json.loads(result.output)
+        assert "all_versions" in data
+        assert "0.1.0" in data["all_versions"]
+        assert "0.2.0" in data["all_versions"]
+
+
+# ---------------------------------------------------------------------------
+# Versions display
+# ---------------------------------------------------------------------------
+
+
+class TestInfoVersions:
+    def test_shows_versions_in_table_output(self, tmp_path):
+        reg_path = tmp_path / "registry"
+        publish_pkg(reg_path, VALID_PKG)
+        publish_pkg(reg_path, {**VALID_PKG, "version": "0.2.0"})
+        result = invoke(["info", "simkjels/samples/sampledata:0.1.0"], tmp_path)
+        assert result.exit_code == 0
+        # Both versions should appear somewhere in the output
+        assert "0.1.0" in result.output
+        assert "0.2.0" in result.output

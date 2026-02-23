@@ -9,19 +9,16 @@ from urllib.parse import urlparse
 import httpx
 import typer
 
-from datum.commands.config import get_config_path, load_config, save_config
+from datum.commands.config import (
+    clear_auth,
+    get_config_path,  # noqa: F401 — kept so callers can patch via this module
+    get_token,
+    load_config,
+    save_config,
+    set_auth,
+)
 from datum.console import console, err_console
 from datum.state import OutputFormat, state
-
-
-def get_token_key(host: str) -> str:
-    """Config key used to store the token for a given registry host."""
-    return f"token.{host}"
-
-
-def get_username_key(host: str) -> str:
-    """Config key used to store the username for a given registry host."""
-    return f"username.{host}"
 
 
 def cmd_login(
@@ -56,9 +53,7 @@ def cmd_login(
             raise typer.Exit(code=1)
 
     cfg = load_config()
-    cfg[get_token_key(host)] = token
-    if collected_username is not None:
-        cfg[get_username_key(host)] = collected_username
+    set_auth(cfg, host, token, collected_username)
     save_config(cfg)
 
     if output_fmt == OutputFormat.json:
@@ -79,18 +74,22 @@ def cmd_logout(
     output_fmt = state.output
     quiet = state.quiet
     host = urlparse(url).netloc or url
-    key = get_token_key(host)
 
     cfg = load_config()
-    if key in cfg:
-        del cfg[key]
-        cfg.pop(get_username_key(host), None)
+    was_logged_in = get_token(cfg, host) is not None
+    if was_logged_in:
+        clear_auth(cfg, host)
         save_config(cfg)
 
     if output_fmt == OutputFormat.json:
-        print(json.dumps({"logged_out": True, "registry": url}, indent=2))
+        print(json.dumps({"logged_out": was_logged_in, "registry": url}, indent=2))
     elif not quiet:
-        console.print(f"\n  [success]✓[/success]  Logged out from [bold]{url}[/bold]\n")
+        if was_logged_in:
+            console.print(f"\n  [success]✓[/success]  Logged out from [bold]{url}[/bold]\n")
+        else:
+            console.print(
+                f"\n  [muted]Not logged in to [bold]{url}[/bold] — nothing to do.[/muted]\n"
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -78,3 +78,40 @@ class TestListQuiet:
         LocalRegistry(tmp_path / "registry").publish(DataPackage.model_validate(VALID_PKG))
         result = invoke(["--quiet", "list"], tmp_path)
         assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# Pattern filter
+# ---------------------------------------------------------------------------
+
+
+class TestListPattern:
+    def _setup(self, tmp_path: Path):
+        reg = LocalRegistry(tmp_path / "registry")
+        reg.publish(DataPackage.model_validate(VALID_PKG))
+        reg.publish(DataPackage.model_validate({
+            **VALID_PKG,
+            "id": "other/ns/dataset",
+            "version": "1.0.0",
+        }))
+
+    def test_pattern_filters_by_publisher(self, tmp_path: Path):
+        self._setup(tmp_path)
+        result = invoke(["list", "simkjels/*"], tmp_path)
+        assert result.exit_code == 0
+        assert "simkjels/samples/sampledata" in result.output
+        assert "other/ns/dataset" not in result.output
+
+    def test_pattern_no_match_shows_empty(self, tmp_path: Path):
+        self._setup(tmp_path)
+        result = invoke(["list", "nobody/*"], tmp_path)
+        assert result.exit_code == 0
+        assert "No datasets" in result.output
+
+    def test_pattern_json_output_filtered(self, tmp_path: Path):
+        self._setup(tmp_path)
+        result = invoke(["--output", "json", "list", "simkjels/*"], tmp_path)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 1
+        assert data[0]["id"] == "simkjels/samples/sampledata"

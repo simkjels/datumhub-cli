@@ -105,3 +105,27 @@ class TestPublishErrors:
         data = json.loads(result.output)
         assert data["published"] is False
         assert "error" in data
+
+
+# ---------------------------------------------------------------------------
+# Force --force updates timestamp
+# ---------------------------------------------------------------------------
+
+
+class TestPublishForce:
+    def test_force_overwrites_existing_version(self, tmp_path: Path):
+        f = write_pkg(tmp_path, VALID_PKG)
+        invoke(["publish", str(f)], tmp_path)
+        result = invoke(["publish", "--force", str(f)], tmp_path)
+        assert result.exit_code == 0, result.output
+
+    def test_force_sets_updated_timestamp(self, tmp_path: Path):
+        from datetime import date
+
+        f = write_pkg(tmp_path, VALID_PKG)
+        invoke(["publish", str(f)], tmp_path)
+        invoke(["publish", "--force", str(f)], tmp_path)
+        reg = LocalRegistry(tmp_path / "registry")
+        pkg = reg.get("simkjels/samples/sampledata", "0.1.0")
+        assert pkg is not None
+        assert pkg.updated == date.today().isoformat()

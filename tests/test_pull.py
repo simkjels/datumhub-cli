@@ -389,3 +389,163 @@ class TestPullLatest:
         cache = tmp_path / "cache"
         result = invoke(["pull", "simkjels/samples/sampledata"], tmp_path, cache)
         assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# B4: Atomic pull (staging)
+# ---------------------------------------------------------------------------
+
+
+TWO_SOURCE_PKG = {
+    "id": "simkjels/samples/sampledata",
+    "version": "0.1.0",
+    "title": "Two Source Dataset",
+    "publisher": {"name": "Simen Kjelsrud"},
+    "sources": [
+        {"url": "https://example.com/file1.csv", "format": "csv"},
+        {"url": "https://example.com/file2.csv", "format": "csv"},
+    ],
+}
+
+
+class TestAtomicPull:
+    def test_checksum_failure_on_second_file_leaves_no_dest(self, tmp_path):
+        """B4.7: if checksum fails on second file, dest directory is not created."""
+        pkg = {
+            **TWO_SOURCE_PKG,
+            "sources": [
+                {"url": "https://example.com/file1.csv", "format": "csv"},
+                {
+                    "url": "https://example.com/file2.csv",
+                    "format": "csv",
+                    "checksum": f"sha256:{'a' * 64}",  # wrong checksum
+                },
+            ],
+        }
+        publish_pkg(tmp_path / "registry", pkg)
+        cache = tmp_path / "cache"
+        dest_root = tmp_path / "dest"
+        with patch("httpx.stream", make_fake_stream([CONTENT])):
+            result = invoke(
+                ["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root
+            )
+        assert result.exit_code == 1
+        assert not (dest_root / "sampledata").exists()
+
+    def test_all_files_succeed_both_in_dest(self, tmp_path):
+        """B4.8: when all files succeed, both appear in dest directory."""
+        publish_pkg(tmp_path / "registry", TWO_SOURCE_PKG)
+        cache = tmp_path / "cache"
+        dest_root = tmp_path / "dest"
+        with patch("httpx.stream", make_fake_stream([CONTENT])):
+            result = invoke(
+                ["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root
+            )
+        assert result.exit_code == 0
+        assert (dest_root / "sampledata" / "file1.csv").exists()
+        assert (dest_root / "sampledata" / "file2.csv").exists()
+
+    def test_staging_dir_cleaned_up_after_success(self, tmp_path):
+        """B4.9: no .staging-* directories remain after a successful pull."""
+        publish_pkg(tmp_path / "registry", VALID_PKG)
+        cache = tmp_path / "cache"
+        dest_root = tmp_path / "dest"
+        with patch("httpx.stream", make_fake_stream([CONTENT])):
+            result = invoke(
+                ["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache, dest_root
+            )
+        assert result.exit_code == 0
+        dataset_cache = cache / "simkjels" / "samples" / "sampledata"
+        assert list(dataset_cache.glob(".staging-*")) == []
+
+    def test_staging_dir_cleaned_up_after_failure(self, tmp_path):
+        """B4.10: no .staging-* directories remain after a failed pull."""
+        pkg = {
+            **VALID_PKG,
+            "sources": [
+                {
+                    "url": "https://example.com/sample.csv",
+                    "format": "csv",
+                    "checksum": f"sha256:{'b' * 64}",  # wrong checksum
+                }
+            ],
+        }
+        publish_pkg(tmp_path / "registry", pkg)
+        cache = tmp_path / "cache"
+        with patch("httpx.stream", make_fake_stream([CONTENT])):
+            invoke(["pull", "simkjels/samples/sampledata:0.1.0"], tmp_path, cache)
+        dataset_cache = cache / "simkjels" / "samples" / "sampledata"
+        assert list(dataset_cache.glob(".staging-*")) == []
+
+
+# ---------------------------------------------------------------------------
+# B5: Async parallel downloads
+# ---------------------------------------------------------------------------
+
+
+from contextlib import asynccontextmanager  # noqa: E402
+
+
+class MockAsyncClient:
+    """Minimal async context manager that fakes httpx.AsyncClient."""
+
+    def __init__(self, chunks: List[bytes]):
+        self._chunks = chunks
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    def stream(self, *args, **kwargs):
+        chunks = self._chunks
+
+        @asynccontextmanager
+        async def _ctx():
+            mock = MagicMock()
+            mock.status_code = 200
+            mock.raise_for_status = MagicMock()
+
+            async def aiter_bytes(size=65536):
+                for chunk in chunks:
+                    yield chunk
+
+            mock.aiter_bytes = aiter_bytes
+            yield mock
+
+        return _ctx()
+
+
+class TestParallelPull:
+    def test_parallel_2_downloads_both_files(self, tmp_path):
+        """B5.7: --parallel 2 downloads both sources; both files present in dest."""
+        publish_pkg(tmp_path / "registry", TWO_SOURCE_PKG)
+        cache = tmp_path / "cache"
+        dest_root = tmp_path / "dest"
+        mock_client = MockAsyncClient([CONTENT])
+        with patch("datum.commands.pull.httpx.AsyncClient", return_value=mock_client):
+            result = invoke(
+                ["pull", "--parallel", "2", "simkjels/samples/sampledata:0.1.0"],
+                tmp_path,
+                cache,
+                dest_root,
+            )
+        assert result.exit_code == 0, result.output
+        assert (dest_root / "sampledata" / "file1.csv").exists()
+        assert (dest_root / "sampledata" / "file2.csv").exists()
+
+    def test_parallel_1_uses_serial_path(self, tmp_path):
+        """B5.8: --parallel 1 (default) uses the serial path without regression."""
+        publish_pkg(tmp_path / "registry", VALID_PKG)
+        cache = tmp_path / "cache"
+        dest_root = tmp_path / "dest"
+        with patch("httpx.stream", make_fake_stream([CONTENT])):
+            result = invoke(
+                ["pull", "--parallel", "1", "simkjels/samples/sampledata:0.1.0"],
+                tmp_path,
+                cache,
+                dest_root,
+            )
+        assert result.exit_code == 0
+        assert (dest_root / "sampledata" / "sample.csv").exists()

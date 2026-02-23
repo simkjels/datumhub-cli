@@ -17,9 +17,9 @@ from rich.rule import Rule
 from rich.text import Text
 
 from datum.commands.config import load_config
-from datum.commands.login import get_username_key
+from datum.commands.config import get_username
 from datum.console import console, err_console
-from datum.models import CHECKSUM_PATTERN, PUBLISHER_PATTERN, SLUG_PATTERN, DataPackage
+from datum.models import PUBLISHER_PATTERN, SLUG_PATTERN, DataPackage
 from datum.state import state
 
 
@@ -118,18 +118,18 @@ def _prompt_int(label: str) -> Optional[int]:
             err_console.print("  [error]Must be a non-negative integer.[/error]")
 
 
-def _prompt_checksum(label: str) -> Optional[str]:
-    """Ask for an optional checksum string."""
-    while True:
-        value = Prompt.ask(f"  {label}", default="").strip()
-        if not value:
-            return None
-        if not CHECKSUM_PATTERN.match(value):
-            err_console.print(
-                "  [error]Expected format: sha256:<hex>, sha512:<hex>, or md5:<hex>[/error]"
-            )
-            continue
-        return value
+def _slugify(s: str) -> Optional[str]:
+    """Convert an arbitrary string to a valid slug, or return None if impossible."""
+    import re
+    s = s.lower().replace(" ", "-").replace("_", "-")
+    s = re.sub(r"[^a-z0-9-]", "", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s if s and SLUG_PATTERN.match(s) else None
+
+
+def _prettify(slug: str) -> str:
+    """Turn a slug into a human-readable name (oslo-hourly → Oslo Hourly)."""
+    return slug.replace("-", " ").replace(".", " ").title()
 
 
 def _get_stored_username() -> Optional[str]:
@@ -146,12 +146,13 @@ def _get_stored_username() -> Optional[str]:
     if registry and registry.startswith(("http://", "https://")):
         host = urlparse(registry).netloc
         if host:
-            value = cfg.get(get_username_key(host))
+            value = get_username(cfg, host)
             if value:
                 return value
 
-    # Fall back: if exactly one username.* key exists, use it
-    usernames = [v for k, v in cfg.items() if k.startswith("username.")]
+    # Fall back: collect all stored usernames from auth section
+    auth = cfg.get("auth", {})
+    usernames = [v.get("username") for v in auth.values() if v.get("username")]
     return usernames[0] if len(usernames) == 1 else None
 
 
@@ -210,13 +211,17 @@ def cmd_init(
     )
     console.print()
 
+    cwd = Path.cwd()
+    default_dataset = _slugify(cwd.name)
+    default_namespace = _slugify(cwd.parent.name) or "data"
+
     stored_username = _get_stored_username()
     if stored_username:
         console.print(f"  [muted]Logged in as [bold]{stored_username}[/bold] — press Enter to use as publisher slug.[/muted]\n")
 
     publisher_slug = _prompt_publisher_slug("Publisher slug", default=stored_username)
-    namespace_slug = _prompt_slug("Namespace slug  (e.g. population, weather)")
-    dataset_slug = _prompt_slug("Dataset slug    (e.g. census, oslo-hourly)")
+    namespace_slug = _prompt_slug("Namespace slug  (e.g. population, weather)", default=default_namespace)
+    dataset_slug = _prompt_slug("Dataset slug    (e.g. census, oslo-hourly)", default=default_dataset)
     identifier = f"{publisher_slug}/{namespace_slug}/{dataset_slug}"
     console.print(f"\n  [success]✓[/success] Identifier: [identifier]{identifier}[/identifier]\n")
 
@@ -237,7 +242,7 @@ def cmd_init(
     # -----------------------------------------------------------------------
     console.print(Rule("[bold]Step 3 · Metadata[/bold]", style="cyan"))
     console.print()
-    title = _prompt_required("Title")
+    title = _prompt_required("Title", default=_prettify(dataset_slug))
     description = _prompt_optional("Description          (optional)")
     license_val = _prompt_optional("License              (e.g. CC-BY-4.0, ODbL, MIT)", default="CC-BY-4.0")
     console.print()
@@ -247,7 +252,7 @@ def cmd_init(
     # -----------------------------------------------------------------------
     console.print(Rule("[bold]Step 4 · Publisher[/bold]", style="cyan"))
     console.print()
-    publisher_name = _prompt_required("Publisher name")
+    publisher_name = _prompt_required("Publisher name", default=_prettify(publisher_slug))
     publisher_url = _prompt_url("Publisher URL        (optional)", required=False)
     console.print()
 
@@ -266,13 +271,10 @@ def cmd_init(
         guessed_fmt = _guess_format(url)
         fmt = _prompt_required("Format               (e.g. csv, parquet, json)", default=guessed_fmt)
         size = _prompt_int("File size in bytes   (optional)")
-        checksum = _prompt_checksum("Checksum             (optional, e.g. sha256:abc123…)")
 
         source: dict = {"url": url, "format": fmt}
         if size is not None:
             source["size"] = size
-        if checksum:
-            source["checksum"] = checksum
         sources.append(source)
 
         console.print()
@@ -280,6 +282,11 @@ def cmd_init(
             break
         source_num += 1
         console.print()
+
+    console.print(
+        "  [muted]Tip: run [bold]datum add <url>[/bold] to automatically verify "
+        "file integrity for your sources.[/muted]"
+    )
 
     # -----------------------------------------------------------------------
     # Step 6: Tags

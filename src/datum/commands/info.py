@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import List
 
 import typer
 from rich import box
@@ -13,17 +14,18 @@ from datum.console import console, err_console
 from datum.models import ID_PATTERN
 from datum.registry.local import get_registry
 from datum.state import OutputFormat, state
+from datum.utils import fmt_size, parse_identifier
 
 
 def cmd_info(
     identifier: str = typer.Argument(
-        ..., help="Dataset identifier (publisher.namespace.dataset[:version])"
+        ..., help="Dataset identifier (publisher/namespace/dataset[:version])"
     ),
 ) -> None:
     """
     Show full metadata for a dataset without downloading.
 
-    IDENTIFIER format: [bold]publisher.namespace.dataset[:version][/bold]
+    IDENTIFIER format: [bold]publisher/namespace/dataset[:version][/bold]
 
     Omit :version to show the latest published version.
 
@@ -32,12 +34,8 @@ def cmd_info(
     output_fmt = state.output
     quiet = state.quiet
 
-    # Parse identifier
-    if ":" in identifier:
-        id_part, version = identifier.split(":", 1)
-    else:
-        id_part = identifier
-        version = "latest"
+    id_part, version = parse_identifier(identifier)
+    version = version or "latest"
 
     # Validate
     if not ID_PATTERN.match(id_part):
@@ -55,6 +53,7 @@ def cmd_info(
     registry = get_registry()
     try:
         pkg = registry.latest(id_part) if version == "latest" else registry.get(id_part, version)
+        all_versions = registry.versions(id_part)
     except RuntimeError as exc:
         if output_fmt == OutputFormat.json:
             print(json.dumps({"error": str(exc)}, indent=2))
@@ -77,11 +76,13 @@ def cmd_info(
         raise typer.Exit(code=1)
 
     if output_fmt == OutputFormat.json:
-        print(json.dumps(pkg.to_dict(), indent=2, ensure_ascii=False))
+        data = pkg.to_dict()
+        data["all_versions"] = all_versions
+        print(json.dumps(data, indent=2, ensure_ascii=False))
         return
 
     if not quiet:
-        _print_info(pkg)
+        _print_info(pkg, all_versions)
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +90,7 @@ def cmd_info(
 # ---------------------------------------------------------------------------
 
 
-def _print_info(pkg) -> None:
+def _print_info(pkg, all_versions: List[str]) -> None:
     console.print()
     console.print(
         Panel(
@@ -120,6 +121,13 @@ def _print_info(pkg) -> None:
     if pkg.updated:
         meta.add_row("Updated", pkg.updated)
 
+    if all_versions:
+        version_str = "  ".join(
+            f"[bold]{v}[/bold]" if v == pkg.version else f"[muted]{v}[/muted]"
+            for v in all_versions
+        )
+        meta.add_row("Versions", version_str)
+
     console.print(meta)
     console.print()
 
@@ -132,17 +140,9 @@ def _print_info(pkg) -> None:
     src_table.add_column("Checksum")
 
     for source in pkg.sources:
-        size_str = _fmt_size(source.size) if source.size else "[muted]—[/muted]"
+        size_str = fmt_size(source.size) if source.size else "[muted]—[/muted]"
         checksum_str = source.checksum if source.checksum else "[muted]—[/muted]"
         src_table.add_row(source.url, source.format, size_str, checksum_str)
 
     console.print(src_table)
     console.print()
-
-
-def _fmt_size(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
